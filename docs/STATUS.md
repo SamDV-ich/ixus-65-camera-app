@@ -35,3 +35,9 @@ Every connection failure schedules another background attempt after three second
 [Requirements](REQUIREMENTS.md) · [Build and tests](BUILD.md)
 
 Historical reports, photographs and test logs are outside this application repository.
+
+## Native focus range
+
+The focus-range picker reads PROPCASE_REAL_FOCUS_MODE (11 in propset1), separately from PROPCASE_FOCUS_MODE (12, manual focus). It selects normal/macro/infinity using the IXUS 65 native left button, releases AF Lock and verifies the resulting property. Selection uses at most three button presses; failure attempts to restore the initial range and AF Lock. Camera menus must be closed. Readback confirms Canon state, not optical accuracy.
+
+Simulated tests cover all three values, AF Lock release, unsupported and invalid selections, and camera-side macro synchronization. Physical behavior on this IXUS 65 still requires validation. Sources: [CHDK propset1](https://github.com/pelrun/CHDK/blob/master/include/propset1.h), [CHDK focus state conversion](https://github.com/pelrun/CHDK/blob/master/core/shooting.c), [IXUS 65 keyboard mapping](https://github.com/pelrun/CHDK/blob/master/platform/ixus65_sd630/kbd.c), and the Canon guides linked above.

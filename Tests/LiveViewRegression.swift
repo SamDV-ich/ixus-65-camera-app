@@ -3,7 +3,7 @@ import AppKit
 import Darwin
 
 actor SimulatedCamera: CameraService {
-    var state = CameraState(mode: 1, modeName: "AUTO", flash: 0, zoom: 0, focus: 1000, aflock: 0, record: true, battery: 3800)
+    var state = CameraState(mode: 1, modeName: "AUTO", flash: 0, zoom: 0, focus: 1000, aflock: 0, focusRange: 0, record: true, battery: 3800)
     var failFrames = false
     var displayOn = true
     var delayPoll = false
@@ -11,7 +11,7 @@ actor SimulatedCamera: CameraService {
     func holdNextPoll() { delayPoll = true; delayedPollStarted = false }
     func hasDelayedPollStarted() -> Bool { delayedPollStarted }
     func physicalChange() {
-        state = CameraState(mode: 2, modeName: "P", flash: 1, zoom: 3, focus: 2000, aflock: 1, record: true, battery: 3800)
+        state = CameraState(mode: 2, modeName: "P", flash: 1, zoom: 3, focus: 2000, aflock: 1, focusRange: 1, record: true, battery: 3800)
     }
     func physicalFocus(_ value: Int) {
         state = CameraState(mode: state.mode, modeName: state.modeName, flash: state.flash, zoom: state.zoom, focus: value, aflock: state.aflock, record: true, battery: 3800)
@@ -71,7 +71,7 @@ actor SimulatedCamera: CameraService {
             guard battery.batteryPercent == 50 else { throw CameraFailure(message: "Battery estimate") }
             print("PASS: automatic connection, connection status, battery estimate")
             await service.physicalChange()
-            try await waitFor("idle poll") { model.zoom == 3 && model.mode == 2 && model.flash == 1 && model.focusText == "2000" && model.state?.aflock == 1 }
+            try await waitFor("idle poll") { model.focusRange == 1 && model.zoom == 3 && model.mode == 2 && model.flash == 1 && model.focusText == "2000" && model.state?.aflock == 1 }
             guard !model.busy else { throw CameraFailure(message: "Poll disables controls") }
             print("PASS: camera-side settings synchronize while idle")
             model.startLive(); try await waitFor("initial frames") { model.liveFrames >= 3 }

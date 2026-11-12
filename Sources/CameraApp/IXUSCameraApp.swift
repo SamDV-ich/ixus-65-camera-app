@@ -125,6 +125,22 @@ struct CameraView: View {
                     Divider()
                     SectionHelpHeader(title: "Фокус", explanation: "Введите дистанцию в миллиметрах и нажмите Enter или перейдите к другому полю — значение применится автоматически.\n\nДистанция приблизительная. Для проверки резкости используйте предпросмотр. Кнопка «Автофокус» снимает фиксацию фокуса.")
                     HStack {
+                        Picker("Диапазон", selection: Binding(
+                            get: { model.focusRange ?? -1 },
+                            set: { model.select("focusrange", value: $0) }
+                        )) {
+                            Text("Обычный").tag(0)
+                            Text("Макро").tag(1)
+                            Text("Бесконечность").tag(3)
+                            if let range = model.focusRange, ![0, 1, 3].contains(range) {
+                                Text("Другой (\(range))").tag(range)
+                            } else if model.focusRange == nil {
+                                Text("Недоступно").tag(-1)
+                            }
+                        }.disabled(model.focusRange == nil)
+                        HelpButton(title: "Диапазон фокуса", explanation: "Обычный — стандартный автофокус. Макро — для близких предметов: на широком угле IXUS 65 позволяет снимать примерно от 3 см, на максимальном оптическом зуме — от 30 см. Бесконечность — для удалённых объектов примерно от 3 м.\n\nЭто штатные режимы Canon, а не ввод точной дистанции. Выбор снимает фиксацию фокуса. Некоторые режимы съёмки ограничивают доступные диапазоны. Меню на самой камере должно быть закрыто.")
+                    }
+                    HStack {
                         TextField("Дистанция, мм", text: Binding(get: { model.focusText }, set: { model.editFocus($0) })).frame(width: 100).focused($focusEditing).onSubmit { focusEditing = false }
                             .onChange(of: focusEditing) { editing in
                                 if editing { model.focusEditing = true } else { model.finishFocusEditing() }

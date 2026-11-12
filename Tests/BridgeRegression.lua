@@ -2,10 +2,10 @@
 local original_print=print
 local original_lines=io.lines
 local bridge_path=arg[1]
-local function scenario(lines, fail_off, initially_connected, physical_wake)
+local function scenario(lines, fail_off, initially_connected, physical_wake, block_range)
  local connected=initially_connected~=false
- local calls={}; local connects=0; local lcd=1; local mode=1
- package.preload.propcase=function() return {FLASH_MODE=16,AF_LOCK=193} end
+ local calls={}; local connects=0; local lcd=1; local mode=1; local focus_range=0; local aflock=1
+ package.preload.propcase=function() return {FLASH_MODE=16,AF_LOCK=193,REAL_FOCUS_MODE=11} end
  package.loaded.capmode=nil
  package.preload.capmode=function() return {
   get=function() return mode end,get_name=function() return mode==0 and 'PLAY' or 'AUTO' end,mode_to_name={[1]='AUTO',[2]='P',[36]='PORTRAIT',[60]='SCN_SNOW',[70]='VIDEO_STD',[80]='UNSUPPORTED'},
@@ -13,9 +13,14 @@ local function scenario(lines, fail_off, initially_connected, physical_wake)
   set=function(value) mode=value; lcd=1; calls[#calls+1]='canon-mode'; return true end
  } end
  get_buildinfo=function() return {platform='ixus65_sd630',platsub='100a',build_number='test'} end
- get_prop=function() return 0 end; get_zoom=function() return 0 end
+ get_prop=function(id) if id==11 then return focus_range elseif id==193 then return aflock else return 0 end end; get_zoom=function() return 0 end
  get_focus=function() return 1000 end; get_mode=function() return mode~=0 end
  get_vbatt=function() return 3800 end; get_config_value=function(id) return id==2100 and 4200 or 3400 end
+ set_aflock=function(value) aflock=value and 1 or 0 end
+ click=function(key)
+  assert(key=='left'); calls[#calls+1]='range-button'
+  if not block_range then focus_range=({[0]=1,[1]=3,[3]=0})[focus_range] end
+ end
  sleep=function() end
  set_backlight=function(value)
   calls[#calls+1]='display'..value; lcd=value
@@ -79,3 +84,16 @@ for _,id in ipairs({70,80,999}) do
  assert(responses[1]:match('"ok":false'),responses[1])
 end
 original_print('PASS: video, unavailable and unknown modes are rejected before switching')
+
+local _,_,_,responses=scenario({'focusrange\t1\t\t1','focusrange\t3\t\t2','focusrange\t0\t\t3','QUIT'})
+for i,range in ipairs({1,3,0}) do
+ assert(responses[i]:match('"ok":true') and responses[i]:match('"focusRange":'..range) and responses[i]:match('"aflock":0'),responses[i])
+end
+original_print('PASS: native focus-range button selects macro, infinity and normal, releasing AF Lock')
+local calls,_,_,responses=scenario({'focusrange\t3\t\t1','QUIT'},false,true,false,true)
+assert(responses[1]:match('"ok":false'),responses[1])
+assert(not calls:match('range%-button,range%-button,range%-button,range%-button'),calls)
+original_print('PASS: unavailable focus range fails after bounded native button attempts')
+local _,_,_,responses=scenario({'focusrange\t2\t\t1','QUIT'})
+assert(responses[1]:match('"ok":false'),responses[1])
+original_print('PASS: invalid focus range is rejected')

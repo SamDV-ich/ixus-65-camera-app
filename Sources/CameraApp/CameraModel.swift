@@ -23,6 +23,7 @@ import SwiftUI
     @Published var availableModes: [CaptureMode] = []
     @Published var mode = 1
     @Published var zoom = 0
+    @Published var focusRange: Int?
     @Published var focusText = "1000"
     @Published var displaySupported = false
     @Published var keepBacklightOff = false
@@ -77,7 +78,7 @@ import SwiftUI
     func connectionFailed(_ error: Error, quietly: Bool = false) {
         let text = error.localizedDescription
         nextSearchAt = Date().addingTimeInterval(reconnectInterval)
-        state = nil; availableModes = []; liveSupported = false; displaySupported = false; keepBacklightOff = false
+        state = nil; focusRange = nil; availableModes = []; liveSupported = false; displaySupported = false; keepBacklightOff = false
         connectionKind = text.contains("IXUS_BUSY:") ? "occupied" : (text.contains("IXUS_ABSENT:") ? "absent" : "unavailable")
         connection = connectionKind == "occupied" ? "Камера занята" : (connectionKind == "absent" ? "Камера не найдена" : "Камера недоступна")
         let clean = text.replacingOccurrences(of: "IXUS_BUSY: ", with: "").replacingOccurrences(of: "IXUS_ABSENT: ", with: "")
@@ -127,7 +128,7 @@ import SwiftUI
                 return item.isPhoto ? item : nil
             }.sorted { $0.id < $1.id }
         }
-        if let s = reply.state { connectionKind = "connected"; connection = "Камера под управлением приложения"; state = s; flash = s.flash; mode = s.mode; zoom = s.zoom
+        if let s = reply.state { connectionKind = "connected"; connection = "Камера под управлением приложения"; state = s; flash = s.flash; mode = s.mode; zoom = s.zoom; focusRange = s.focusRange
             if !focusEditing && !focusDraftChanged { focusText = String(s.focus) }
         }
         if let supported = reply.live { liveSupported = supported }

@@ -13,7 +13,7 @@ local function state()
  -- An explicit keep-off policy also handles Canon buttons that wake the lamp.
  -- Reapply within the existing state request, not in the frame-transfer loop.
  local prefix=hold_backlight_off and 'set_backlight(0); ' or ''
- return remote(prefix..[[local p=require'propcase'; local c=require'capmode'; return {mode=c.get(),modeName=c.get_name(),flash=get_prop(p.FLASH_MODE),zoom=get_zoom(),focus=get_focus(),aflock=get_prop(p.AF_LOCK),record=get_mode(),battery=get_vbatt(),batteryMin=get_config_value(2101),batteryMax=get_config_value(2100)}]])
+ return remote(prefix..[[local p=require'propcase'; local c=require'capmode'; return {mode=c.get(),modeName=c.get_name(),flash=get_prop(p.FLASH_MODE),zoom=get_zoom(),focus=get_focus(),aflock=get_prop(p.AF_LOCK),focusRange=p.REAL_FOCUS_MODE and get_prop(p.REAL_FOCUS_MODE) or nil,record=get_mode(),battery=get_vbatt(),batteryMin=get_config_value(2101),batteryMax=get_config_value(2100)}]])
 end
 local verified_build
 local connection_generation=0
@@ -104,6 +104,26 @@ function M.run(action,value,output,request_id)
     assert(value and value>=0 and value<=6 and value%1==0,'Недопустимый зум')
     remote(('set_zoom(%d); sleep(400)'):format(value))
     assert(state().zoom==value,'Камера не приняла положение зума')
+   elseif action=='focusrange' then
+    assert(value==0 or value==1 or value==3,'Недопустимый диапазон фокуса')
+    -- Use the native Canon button rather than writing a property that may only
+    -- change the reported value without changing the lens/Canon focus policy.
+    remote(([[local p=require'propcase'; assert(p.REAL_FOCUS_MODE,'Диапазон фокуса недоступен');
+      local target=%d; local original=get_prop(p.REAL_FOCUS_MODE); local locked=get_prop(p.AF_LOCK)==1;
+      assert(original==0 or original==1 or original==3,'Неизвестный диапазон фокуса камеры');
+      set_aflock(false);
+      for i=1,3 do
+        if get_prop(p.REAL_FOCUS_MODE)==target then return end
+        click('left'); sleep(350)
+      end
+      if get_prop(p.REAL_FOCUS_MODE)==target then return end
+      for i=1,3 do
+        if get_prop(p.REAL_FOCUS_MODE)==original then break end
+        click('left'); sleep(350)
+      end
+      set_aflock(locked);
+      error('Камера не приняла диапазон фокуса в текущем режиме. Закройте меню камеры и попробуйте в режиме P.')]]):format(value))
+    assert(state().focusRange==value,'Камера не переключила диапазон фокуса')
    elseif action=='focus' then
     assert(value and value>=100 and value<=10000,'Дистанция: 100–10000 мм')
     remote(('set_aflock(true); set_focus(%d); sleep(500)'):format(value))
