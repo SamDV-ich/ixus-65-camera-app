@@ -36,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 struct CameraView: View {
     @ObservedObject var model: CameraModel
+    @State private var showingCameraMenu = false
     @State private var confirmRelease = false
     @FocusState private var focusEditing: Bool
     var body: some View {
@@ -128,6 +129,11 @@ struct CameraView: View {
                     }
                     }
                     }
+                    Group {
+                        CameraExposureControls(model: model)
+                        Button("Все настройки камеры…") { showingCameraMenu = true }
+                            .disabled(!model.liveSupported)
+                    }
                     Divider()
                     SectionHelpHeader(title: "Фокус", explanation: "Выберите диапазон, затем нажмите «Навести резкость». Камера выполнит автофокусировку без снимка.\n\n«Зафиксировать» удерживает найденный фокус, чтобы камера не меняла его при съёмке. Отключите фиксацию для обычного автофокуса. Для пересъёмки плёнки удобно один раз навести резкость и зафиксировать её. Ручная дистанция находится в дополнительных настройках и является приблизительной.")
                     if !model.options("focusrange").isEmpty {
@@ -177,6 +183,11 @@ struct CameraView: View {
                 ScrollView { Text(model.events.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }.frame(height: 80)
             }
         }.padding(22).frame(minWidth: 900, minHeight: 650)
+        .sheet(isPresented: $showingCameraMenu) {
+            NativeCameraControls(model: model)
+                .onAppear { model.setCameraMenu(true) }
+                .onDisappear { model.setCameraMenu(false) }
+        }
         .alert("Освободить подключение камеры?", isPresented: $confirmRelease) {
             Button("Отмена", role: .cancel) {}
             Button("Освободить и подключиться") { model.perform("reclaim") }
@@ -184,6 +195,70 @@ struct CameraView: View {
             Text("Будет принудительно остановлена системная служба импорта фотографий macOS. Текущий импорт может прерваться. Другие приложения нужно закрыть самостоятельно. Передать их открытый сеанс этому приложению невозможно.")
         }
         .alert("Камера", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("Понятно") { model.error = nil } } message: { Text(model.error ?? "") }
+    }
+}
+
+struct CameraExposureControls: View {
+    @ObservedObject var model: CameraModel
+    private func label(_ action: String, _ value: Int) -> String {
+        switch action {
+        case "iso": return value == 0 ? "Авто" : (value == -1 ? "Высокое авто" : String(value))
+        case "wb": return [0:"Авто",1:"Дневной свет",2:"Облачно",3:"Лампа накаливания",4:"Люминесцентный",5:"Люминесцентный H",7:"Пользовательский"][value] ?? String(value)
+        case "ev": return String(format: "%+.1f EV", Double(value) / 96)
+        case "metering": return [0:"Оценочный",1:"Точечный",2:"Центровзвешенный"][value] ?? String(value)
+        default: return String(value)
+        }
+    }
+    var body: some View {
+        ForEach(["iso", "wb", "ev", "metering"], id: \.self) { action in
+            if !model.options(action).isEmpty, let current = model.state?.settings?[action] {
+                Picker(["iso":"ISO", "wb":"Баланс белого", "ev":"Экспокоррекция", "metering":"Замер"][action]!, selection: Binding(
+                    get: { model.state?.settings?[action] ?? current },
+                    set: { model.select(action, value: $0) }
+                )) {
+                    ForEach(model.options(action), id: \.self) { value in Text(label(action, value)).tag(value) }
+                    if !model.options(action).contains(current) { Text(label(action, current)).tag(current) }
+                }
+            }
+        }
+    }
+}
+
+struct NativeCameraControls: View {
+    @ObservedObject var model: CameraModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var halfPressCombination = false
+    private func key(_ title: String, _ value: Int) -> some View {
+        Button(title) { model.perform("key", value: value + (halfPressCombination ? 100 : 0)) }.disabled(model.busy || model.state == nil)
+    }
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack {
+                Text("Все настройки камеры").font(.title2.bold())
+                HelpButton(title: "Штатное меню Canon", explanation: "Это экран и кнопки самой камеры. FUNC./SET открывает параметры съёмки, MENU — полное меню. Стрелки выбирают пункт и значение, FUNC./SET подтверждает. Доступные функции определяет сама камера для выбранного режима.\n\nЗдесь доступны размер и качество JPEG, таймер и серия, замер, цветовые эффекты, баланс белого и другие параметры Canon. При закрытии камера получает только полунажатие для выхода из меню — снимка не будет.")
+                Spacer()
+                Button("Готово") { dismiss() }.disabled(model.busy)
+            }
+            ZStack {
+                Color.black
+                if let image = model.preview { Image(nsImage: image).resizable().aspectRatio(contentMode: .fit) }
+            }.frame(width: 640, height: 480)
+            HStack(spacing: 24) {
+                VStack { key("MENU", 0); key("DISP.", 6) }
+                VStack {
+                    key("↑", 2).accessibilityLabel("Вверх")
+                    HStack { key("←", 4).accessibilityLabel("Влево"); key("FUNC./SET", 1); key("→", 5).accessibilityLabel("Вправо") }
+                    key("↓", 3).accessibilityLabel("Вниз")
+                }
+                VStack { key("Зум +", 7); key("Зум −", 8) }
+            }
+            HStack {
+                Toggle("Кнопки с полунажатием", isOn: $halfPressCombination).disabled(model.busy)
+                HelpButton(title: "Комбинации кнопок Canon", explanation: "При включении приложение удерживает полунажатие только на время отправки выбранной кнопки, затем обязательно отпускает. Это позволяет использовать штатные комбинации Canon, например фиксацию экспозиции. Полное нажатие спуска здесь не отправляется; снимка не будет.")
+                Spacer()
+            }
+            Text(model.message).font(.callout).foregroundColor(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+        }.padding(24)
     }
 }
 

@@ -5,16 +5,24 @@ local function json(v)
  if type(v)=='boolean' or type(v)=='number' then return tostring(v) end
  if v==nil then return 'null' end
  if type(v)=='string' then return '"'..v:gsub('[%z\1-\31\\"]',function(c) return string.format('\\u%04x',c:byte()) end)..'"' end
- local out={}; for k,x in pairs(v) do out[#out+1]=json(tostring(k))..':'..json(x) end
+ local count=0; local array=#v>0
+ for k in pairs(v) do count=count+1; if type(k)~='number' or k<1 or k%1~=0 or k>#v then array=false end end
+ local out={}
+ if array and count==#v then
+  for i=1,#v do out[#out+1]=json(v[i]) end
+  return '['..table.concat(out,',')..']'
+ end
+ for k,x in pairs(v) do out[#out+1]=json(tostring(k))..':'..json(x) end
  return '{'..table.concat(out,',')..'}'
 end
 local function remote(code) return con:execwait(code,{timeout=60000}) end
+local show_osd=false
 local hold_backlight_off=false
 local function state()
  -- An explicit keep-off policy also handles Canon buttons that wake the lamp.
  -- Reapply within the existing state request, not in the frame-transfer loop.
  local prefix=hold_backlight_off and 'set_backlight(0); ' or ''
- local result=remote(prefix..[[local p=require'propcase'; local c=require'capmode'; return {mode=c.get(),modeName=c.get_name(),flash=get_prop(p.FLASH_MODE),zoom=get_zoom(),focus=get_focus(),aflock=get_prop(p.AF_LOCK),focusState=p.FOCUS_STATE and get_prop(p.FOCUS_STATE) or nil,focusRange=p.REAL_FOCUS_MODE and get_prop(p.REAL_FOCUS_MODE) or nil,record=get_mode(),battery=get_vbatt(),batteryMin=get_config_value(2101),batteryMax=get_config_value(2100)}]])
+ local result=remote(prefix..[[local p=require'propcase'; local c=require'capmode'; return {mode=c.get(),modeName=c.get_name(),flash=get_prop(p.FLASH_MODE),zoom=get_zoom(),focus=get_focus(),aflock=get_prop(p.AF_LOCK),focusState=p.FOCUS_STATE and get_prop(p.FOCUS_STATE) or nil,focusRange=p.REAL_FOCUS_MODE and get_prop(p.REAL_FOCUS_MODE) or nil,record=get_mode(),battery=get_vbatt(),batteryMin=get_config_value(2101),batteryMax=get_config_value(2100),settings={iso=get_prop(p.ISO_MODE or 21),wb=get_prop(p.WB_MODE or 5),ev=get_prop(p.EV_CORRECTION_1 or 25),metering=get_prop(p.METERING_MODE or 9)}}]])
  result.controls=profile.controls(result.modeName)
  return result
 end
@@ -72,9 +80,35 @@ function M.run(action,value,output,request_id)
   elseif action=='play' then
    if remote('return get_mode()') then local s,e=cli:execute('play'); assert(s,e) end
    return {state=state()}
+  elseif action=='screen' then
+   assert(value==0 or value==1,'Недопустимый экран')
+   if value==1 then
+    assert(con:live_is_api_compatible(),'Экран камеры недоступен')
+    if not remote('return get_mode()') then local s,e=cli:execute('rec'); assert(s,e) end
+   else
+    remote([[press('shoot_half'); sleep(150); release('shoot_half')]])
+   end
+   show_osd=value==1
+   return {state=state()}
+  elseif action=='key' then
+   assert(show_osd,'Сначала откройте настройки камеры')
+   local keys={[0]='menu',[1]='set',[2]='up',[3]='down',[4]='left',[5]='right',[6]='display',[7]='zoom_in',[8]='zoom_out'}
+   local combo=value and value>=100
+   local key=combo and value-100 or value
+   assert(keys[key],'Недопустимая кнопка камеры')
+   if combo then
+    remote(([[local ok,err=pcall(function()
+      press('shoot_half'); local started=get_tick_count();
+      repeat sleep(50) until get_shooting() or get_tick_count()-started>5000;
+      assert(get_shooting(),'Камера не готова к полунажатию'); click('%s'); sleep(200)
+     end); release('shoot_half'); if not ok then error(err) end]]):format(keys[key]))
+   else
+    remote(("click('%s'); sleep(200)"):format(keys[key]))
+   end
+   return {state=state()}
   elseif action=='frame' then
    assert(output and con:live_is_api_compatible(),'Live View недоступен')
-   con:live_get_frame(1)
+   con:live_get_frame(show_osd and 13 or 1)
    -- Upstream live_dump_vp_pbm halves the header width twice when skip=true.
    -- Write the actual decoded pixel dimensions and payload instead.
    local p=require('liveimg').get_viewport_pimg(nil,con.live._frame,true)
@@ -82,6 +116,14 @@ function M.run(action,value,output,request_id)
    local f=assert(io.open(output,'wb'))
    f:write(('P6\n%d %d\n255\n'):format(p:width(),p:height()))
    p:to_lbuf_packed_rgb():fwrite(f); f:close()
+   if show_osd then
+    local bm=require('liveimg').get_bitmap_pimg(nil,con.live._frame,false)
+    assert(bm,'Камера не передала экранное меню')
+    local path=output..'.rgba'; local overlay=assert(io.open(path,'wb'))
+    overlay:write(('RGBA\n%d %d\n'):format(bm:width(),bm:height()))
+    bm:to_lbuf_packed_rgba():fwrite(overlay); overlay:close()
+    return {file=output,overlay=path}
+   end
    return {file=output}
   elseif action=='record' then
    if not remote('return get_mode()') then local s,e=cli:execute('rec'); assert(s,e) end
@@ -95,7 +137,14 @@ function M.run(action,value,output,request_id)
    return {file=output,state=state()}
   else
    if not remote('return get_mode()') then local s,e=cli:execute('rec'); assert(s,e) end
-   if action=='flash' then
+   if action=='iso' or action=='wb' or action=='ev' or action=='metering' then
+    assert(profile.allows(state().controls,action,value),'Настройка недоступна в этом режиме')
+    local props={iso='ISO_MODE',wb='WB_MODE',ev='EV_CORRECTION_1',metering='METERING_MODE'}
+    local fallback={iso=21,wb=5,ev=25,metering=9}
+    remote(([[local p=require'propcase'; local id=p.%s or %d; set_prop(id,%d);
+     %s sleep(200)]]):format(props[action],fallback[action],value,action=='ev' and ('set_prop(p.EV_CORRECTION_2 or 26,'..value..');') or ''))
+    assert(state().settings[action]==value,'Камера не приняла значение настройки')
+   elseif action=='flash' then
     assert(profile.allows(state().controls,'flash',value),'Вспышка недоступна в этом режиме')
     remote(('set_prop(require("propcase").FLASH_MODE,%d); sleep(200)'):format(value))
     assert(state().flash==value,'Камера не приняла настройку вспышки')
@@ -152,6 +201,7 @@ function M.run(action,value,output,request_id)
  if not ok then
   restore_display()
   hold_backlight_off=false
+  show_osd=false
   verified_build=nil
   pcall(function() con:disconnect() end)
  end

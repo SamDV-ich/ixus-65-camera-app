@@ -8,7 +8,8 @@ A native macOS application for Canon Digital IXUS 65 / PowerShot SD630, firmware
 - Capture one image and download its JPEG to a selected Mac folder, retaining the original on the SD card.
 - Use one persistent USB connection for commands and Live View when supported.
 - Obtain photo modes from the connected camera's CHDK capabilities, with localized names and descriptions opened using an info button.
-- Apply flash, zoom, native normal/macro/infinity focus range, AF Lock and focus distance controls within the implemented limits.
+- Apply mode-dependent flash, zoom, ISO, white balance, exposure compensation and metering controls; provide simple autofocus, explicit AF Lock and advanced focus distance.
+- Expose the remaining native shooting settings through the actual Canon menu screen with navigation and half-press combinations.
 - Poll state approximately once per second without overwriting an active focus edit.
 - Display battery voltage and an approximate percentage derived from CHDK thresholds.
 - Keep the camera backlight off by periodically reapplying the command; restore it during normal shutdown.

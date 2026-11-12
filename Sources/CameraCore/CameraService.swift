@@ -8,6 +8,7 @@ struct CameraState: Decodable {
     let zoom: Int
     let focus: Int
     let aflock: Int
+    var settings: [String: Int]? = nil
     var controls: [String: [Int]]? = nil
     var focusState: Int? = nil
     var focusRange: Int? = nil
@@ -26,6 +27,7 @@ struct CameraReply: Decodable {
     var build: BuildInfo?
     var modes: [String: String]?
     var live: Bool?
+    var overlay: String?
     var file: String?
     var displaySupported: Bool?
     var keepBacklightOff: Bool?
@@ -114,7 +116,7 @@ actor CHDKCameraService: CameraService {
             try await Task.sleep(nanoseconds: 300_000_000)
             return try await execute("status", value: nil, output: nil)
         }
-        guard ["status", "poll", "display", "live", "frame", "record", "play", "capture", "mode", "flash", "zoom", "focus", "focusrange", "focusnow", "autofocus"].contains(action) else {
+        guard ["status", "poll", "display", "live", "frame", "record", "play", "capture", "mode", "flash", "zoom", "focus", "focusrange", "focusnow", "autofocus", "iso", "wb", "ev", "metering", "screen", "key"].contains(action) else {
             throw CameraFailure(message: "Неизвестная команда камеры")
         }
         let session = try startWorker()

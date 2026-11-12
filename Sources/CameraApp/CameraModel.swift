@@ -14,6 +14,7 @@ import SwiftUI
     @Published var liveFrames = 0
     @Published var lastFrameAt: Date?
     @Published var previewLabel = "Нет изображения"
+    @Published var cameraMenuActive = false
     @Published var preview: NSImage?
     @Published var lastPhoto: URL?
     @Published var message = "Ищу камеру с CHDK по USB…"
@@ -117,6 +118,14 @@ import SwiftUI
         events.insert(Date().formatted(date: .omitted, time: .standard) + "  " + text, at: 0)
         events = Array(events.prefix(30))
     }
+    func setCameraMenu(_ visible: Bool) {
+        cameraMenuActive = visible
+        Task {
+            while busy && !ending { try? await Task.sleep(nanoseconds: 20_000_000) }
+            guard !ending, state != nil else { return }
+            perform("screen", value: cameraMenuActive ? 1 : 0)
+        }
+    }
     func options(_ control: String) -> [Int] { state?.controls?[control] ?? [] }
     func focusNow(lock: Bool? = nil) { perform("focusnow", value: (lock ?? (state?.aflock == 1)) ? 1 : 0) }
     var selectedMode: CaptureMode {
@@ -158,10 +167,15 @@ import SwiftUI
                         update(try await service.execute("live", value: nil, output: nil))
                         resumeLive = true
                     }
+                    if cameraMenuActive && liveSupported {
+                        update(try await service.execute("screen", value: 1, output: nil))
+                        resumeLive = true
+                    }
                     if backlightOffEnabled && displaySupported {
                         update(try await service.execute("display", value: 0, output: nil))
                     }
                 }
+                if action == "screen" { resumeLive = value == 1 || liveEnabled }
                 succeeded = true
                 if quietly && !wasConnected { note("Камера подключена. Готова к работе.") }
                 if action == "display" {
@@ -232,11 +246,23 @@ import SwiftUI
         let current = generation
         liveTask = Task {
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("ixus-live-" + UUID().uuidString + ".ppm")
-            defer { try? FileManager.default.removeItem(at: url) }
+            defer {
+                try? FileManager.default.removeItem(at: url)
+                try? FileManager.default.removeItem(at: URL(fileURLWithPath: url.path + ".rgba"))
+            }
             while !Task.isCancelled && current == generation {
                 do {
-                    _ = try await service.execute("frame", value: nil, output: url)
-                    let image = try Self.decodePPM(Data(contentsOf: url))
+                    let reply = try await service.execute("frame", value: nil, output: url)
+                    var image = try Self.decodePPM(Data(contentsOf: url))
+                    if cameraMenuActive, let overlayPath = reply.overlay {
+                        let overlay = try Self.decodeOverlay(Data(contentsOf: URL(fileURLWithPath: overlayPath)))
+                        let composite = NSImage(size: image.size)
+                        composite.lockFocus()
+                        image.draw(in: NSRect(origin: .zero, size: image.size))
+                        overlay.draw(in: NSRect(origin: .zero, size: image.size), from: .zero, operation: .sourceOver, fraction: 1)
+                        composite.unlockFocus()
+                        image = composite
+                    }
                     guard !Task.isCancelled, current == generation else { return }
                     preview = image; liveFrames += 1; lastFrameAt = Date()
                     previewLabel = "Live View"
@@ -253,6 +279,19 @@ import SwiftUI
         }
     }
     func shutdown() async { ending = true; operationRevision += 1; monitor?.cancel(); monitor = nil; stopLive(); await service.shutdown() }
+    static func decodeOverlay(_ data: Data) throws -> NSImage {
+        guard let first = data.firstIndex(of: 10), let second = data[data.index(after: first)...].firstIndex(of: 10),
+              String(data: data[..<first], encoding: .ascii) == "RGBA",
+              let dimensions = String(data: data[data.index(after: first)..<second], encoding: .ascii) else { throw CameraFailure(message: "Некорректный экран камеры") }
+        let numbers = dimensions.split(separator: " ").compactMap { Int($0) }
+        let payload = Data(data[data.index(after: second)...])
+        guard numbers.count == 2, numbers[0] > 0, numbers[1] > 0, numbers[0] <= 4096, numbers[1] <= 4096,
+              payload.count == numbers[0] * numbers[1] * 4,
+              let provider = CGDataProvider(data: payload as CFData),
+              let cg = CGImage(width: numbers[0], height: numbers[1], bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: numbers[0] * 4,
+                               space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue), provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else { throw CameraFailure(message: "Некорректный экран камеры") }
+        return NSImage(cgImage: cg, size: NSSize(width: numbers[0], height: numbers[1]))
+    }
     // CHDKPTP produces a P6 RGB image. Display it at the camera LCD's 4:3 aspect.
     static func decodePPM(_ data: Data) throws -> NSImage {
         let bytes = [UInt8](data); var index = 0

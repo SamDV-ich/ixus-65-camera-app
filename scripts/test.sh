@@ -12,7 +12,9 @@ swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /pri
 "$TEST_DIR/regression"
 swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Tests/ConnectionRegression.swift -o "$TEST_DIR/connection"
 "$TEST_DIR/connection"
-"$LUA_BIN" Tests/BridgeRegression.lua Resources/ixus_bridge.lua
+"$LUA_BIN" Tests/BridgeRegression.lua Resources/ixus_bridge.lua "$TEST_DIR/camera-state.json"
+swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Sources/CameraApp/CameraModel.swift Tests/SettingsRegression.swift -o "$TEST_DIR/settings"
+"$TEST_DIR/settings" "$TEST_DIR/camera-state.json"
 if [[ "${1:-}" == "--camera" ]]; then
     swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Sources/CameraApp/CameraModel.swift Tests/PersistentSessionIntegration.swift -o "$TEST_DIR/persistent"
     "$TEST_DIR/persistent" "$APP_PATH/Contents/Resources"

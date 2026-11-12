@@ -45,3 +45,11 @@ Simulated tests cover all three values, AF Lock release, unsupported and invalid
 ## Simple focus controls and mode restrictions
 
 Focus now performs a bounded half-press autofocus operation without taking a photograph and always releases the half-press, including on failure. Focus lock is an explicit control, available only in Canon modes that support it. Manual distance is under an advanced disclosure. The ordinary/macro/infinity choices and flash/zoom controls are filtered using the IXUS 65 mode profile; unavailable operations are also rejected by the bridge. Profiles follow Canon's mode/function table and must still be checked on physical hardware. Simulated tests cover focusing, locking, timeout cleanup and mode restrictions.
+
+## Complete Canon control surface
+
+Mode-dependent direct controls now include ISO, stored white balance, exposure compensation and metering. The profile is application-side; it is based on the IXUS 65 function table, not a firmware API claiming to enumerate every writable setting. Unknown modes expose no speculative direct controls. Direct writes are checked against the profile and read back; physical photographic effects are not established by readback alone.
+
+A native control window adds the camera bitmap/palette overlay to the viewport and exposes bounded navigation keys plus half-press combinations. Canon menus provide the remaining shooting settings and enforce their native mode restrictions. It is a remote control surface, not a separate implementation of every menu field or of movie/burst download. Palette/bitmap decoding and menu interactions require hardware validation.
+
+Simulation covers exposure readback, unavailable-mode rejection, menu keys, half-press cleanup and RGBA frame serialization. A cross-language test decodes the actual Lua response in Swift, including numeric capability arrays, and checks overlay payload validation. The profile resource is bundled and verified.

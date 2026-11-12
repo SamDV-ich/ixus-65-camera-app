@@ -5,8 +5,8 @@ local bridge_path=arg[1]
 package.path='Resources/?.lua;'..package.path
 local function scenario(lines, fail_off, initially_connected, physical_wake, block_range, fail_focus)
  local connected=initially_connected~=false
- local calls={}; local connects=0; local lcd=1; local mode=1; local focus_range=0; local aflock=1; local half=false; local ticks=0
- package.preload.propcase=function() return {FLASH_MODE=16,AF_LOCK=193,REAL_FOCUS_MODE=11,FOCUS_STATE=67} end
+ local calls={}; local connects=0; local lcd=1; local mode=1; local focus_range=0; local aflock=1; local half=false; local ticks=0; local props={}
+ package.preload.propcase=function() return {FLASH_MODE=16,AF_LOCK=193,REAL_FOCUS_MODE=11,FOCUS_STATE=67,ISO_MODE=21,WB_MODE=5,EV_CORRECTION_1=25,EV_CORRECTION_2=26,METERING_MODE=9} end
  package.loaded.capmode=nil
  package.preload.capmode=function() return {
   get=function() return mode end,get_name=function() return mode==0 and 'PLAY' or (mode==2 and 'P' or 'AUTO') end,mode_to_name={[1]='AUTO',[2]='P',[36]='PORTRAIT',[60]='SCN_SNOW',[70]='VIDEO_STD',[80]='UNSUPPORTED'},
@@ -14,12 +14,14 @@ local function scenario(lines, fail_off, initially_connected, physical_wake, blo
   set=function(value) mode=value; lcd=1; calls[#calls+1]='canon-mode'; return true end
  } end
  get_buildinfo=function() return {platform='ixus65_sd630',platsub='100a',build_number='test'} end
- get_prop=function(id) if id==11 then return focus_range elseif id==193 then return aflock elseif id==67 then return (half and not fail_focus) and 1 or 0 else return 0 end end; get_zoom=function() return 0 end
+ get_prop=function(id) if id==11 then return focus_range elseif id==193 then return aflock elseif id==67 then return (half and not fail_focus) and 1 or 0 else return props[id] or 0 end end; get_zoom=function() return 0 end
  get_focus=function() return 1000 end; get_mode=function() return mode~=0 end
  get_vbatt=function() return 3800 end; get_config_value=function(id) return id==2100 and 4200 or 3400 end
+ set_prop=function(id,value) props[id]=value end
  set_aflock=function(value) aflock=value and 1 or 0 end
  click=function(key)
-  assert(key=='left'); calls[#calls+1]='range-button'
+  assert(key~='shoot_full'); if key~='left' then calls[#calls+1]='key-'..key; return end
+  calls[#calls+1]='range-button'
   if not block_range then focus_range=({[0]=1,[1]=3,[3]=0})[focus_range] end
  end
  get_tick_count=function() return ticks end
@@ -41,7 +43,8 @@ local function scenario(lines, fail_off, initially_connected, physical_wake, blo
  con={is_connected=function() return connected end,
       disconnect=function() calls[#calls+1]='disconnect'; connected=false end,
       execwait=function(_,code) return assert(load(code))() end,
-      live_is_api_compatible=function() return true end}
+      live_is_api_compatible=function() return true end,
+      live={_frame={}}, live_get_frame=function(_,flags) assert(flags==1 or flags==13) end}
  local responses={}
  print=function(value) responses[#responses+1]=value end
  io.lines=function() local n=0; return function()
@@ -109,3 +112,36 @@ assert(calls:match('half%-press,half%-release'),calls)
 local calls,_,_,responses=scenario({'focusnow\t0\t\t1','QUIT'},false,true,false,false,true)
 assert(responses[1]:match('"ok":false') and calls:match('half%-release'),responses[1])
 original_print('PASS: focus now uses half-press only, locks on success and releases on timeout')
+
+local _,_,_,responses=scenario({'mode\t2\t\t0','iso\t80\t\t1','wb\t3\t\t2','ev\t64\t\t3','metering\t2\t\t4','QUIT'})
+assert(responses[2]:match('"iso":80') and responses[3]:match('"wb":3') and responses[4]:match('"ev":64') and responses[5]:match('"metering":2'))
+local _,_,_,responses=scenario({'ev\t32\t\t1','QUIT'})
+assert(responses[1]:match('"ok":false'),responses[1])
+original_print('PASS: exposure controls read back values and reject unavailable Auto-mode changes')
+local calls,_,_,responses=scenario({'screen\t1\t\t1','key\t1\t\t2','key\t2\t\t3','screen\t0\t\t4','QUIT'})
+assert(responses[4]:match('"ok":true') and calls:match('key%-set,key%-up,half%-press,half%-release'),calls)
+local _,_,_,responses=scenario({'screen\t1\t\t1','key\t999\t\t2','QUIT'})
+assert(responses[2]:match('"ok":false'),responses[2])
+original_print('PASS: native menu accepts bounded keys and closes with a half-press, never a full press')
+local function pixels(channels)
+ return {width=function() return 2 end,height=function() return 2 end,
+  to_lbuf_packed_rgb=function() return {fwrite=function(_,f) f:write(string.rep(string.char(100),12)) end} end,
+  to_lbuf_packed_rgba=function() return {fwrite=function(_,f) f:write(string.rep(string.char(255),16)) end} end}
+end
+package.loaded.liveimg={get_viewport_pimg=function() return pixels(3) end,get_bitmap_pimg=function() return pixels(4) end}
+local path=os.tmpname()
+local hex=path:gsub('.',function(c) return string.format('%02x',c:byte()) end)
+local _,_,_,responses=scenario({'screen\t1\t\t1','frame\t\t'..hex..'\t2','QUIT'})
+assert(responses[2]:match('"ok":true') and responses[2]:match('"overlay":'),responses[2])
+local f=assert(io.open(path..'.rgba','rb')); local overlay=f:read('*a'); f:close()
+assert(overlay=='RGBA\n2 2\n'..string.rep(string.char(255),16))
+os.remove(path); os.remove(path..'.rgba')
+original_print('PASS: native screen writes the bitmap palette overlay beside the viewport frame')
+if arg[2] then
+ local _,_,_,responses=scenario({'mode\t2\t\t0','status\t\t\t1','QUIT'})
+ local f=assert(io.open(arg[2],'w')); f:write((responses[2]:gsub('^IXUS_RESULT:',''))); f:close()
+end
+
+local calls,_,_,responses=scenario({'screen\t1\t\t1','key\t102\t\t2','QUIT'})
+assert(responses[2]:match('"ok":true') and calls:match('half%-press,key%-up,half%-release'),calls)
+original_print('PASS: native button combinations release half-press and cannot send full shutter')

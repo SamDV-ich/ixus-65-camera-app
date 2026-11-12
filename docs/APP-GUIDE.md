@@ -21,7 +21,7 @@ Controls currently use localized labels. This guide describes their function in 
 - **Flash:** automatic, on or off. Read/write behavior was checked; a flash-off photograph was verified using EXIF. Actual forced flash firing was not separately tested.
 - **Zoom:** seven numbered positions, not magnification factors. Hardware checks included movement between the first positions and later between positions 0 and 4 internally.
 - **Focus range:** normal, macro or infinity, mirroring the camera control. Selection applies immediately, releases AF Lock and uses the native Canon button with state readback, rather than a synthetic distance override. Close camera menus first. Some shooting modes restrict available ranges; refusal is reported. Camera-side changes appear during polling. Macro and infinity are distinct from the Digital Macro shooting mode.
-- **Focus distance:** 100–10000 mm using AF Lock and CHDK set_focus. A 1000 mm request returned 1008 mm on the camera; this does not establish optical accuracy. Press Enter or leave the edited field to apply. The autofocus action releases AF Lock; focusing occurs on the next photograph.
+- **Focus distance (advanced):** 100–10000 mm using AF Lock and CHDK set_focus. A 1000 mm request returned 1008 mm on the camera; this does not establish optical accuracy. Press Enter or leave the edited field to apply. The autofocus action releases AF Lock; focusing occurs on the next photograph.
 
 Commands enter record mode when needed. Camera settings remain on the camera after application exit. JPEG capture temporarily disables CHDK RAW through the standard CHDKPTP command, which restores its original value after a successful capture. Failed downloads may still leave a new photograph on the SD card: inspect it before repeating capture. The application does not delete camera photographs and never automatically repeats capture.
 
@@ -78,3 +78,15 @@ Version 0.4.1 saves JPEG; DNG + JPEG is not implemented. See [REQUIREMENTS.md](R
 ## Simple focus controls and mode restrictions
 
 Focus now performs a bounded half-press autofocus operation without taking a photograph and always releases the half-press, including on failure. Focus lock is an explicit control, available only in Canon modes that support it. Manual distance is under an advanced disclosure. The ordinary/macro/infinity choices and flash/zoom controls are filtered using the IXUS 65 mode profile; unavailable operations are also rejected by the bridge. Profiles follow Canon's mode/function table and must still be checked on physical hardware. Simulated tests cover focusing, locking, timeout cleanup and mode restrictions.
+
+## All shooting settings
+
+Use the mode-dependent ISO, white balance, exposure compensation and metering selectors for quick changes. Values are read back after writing and refreshed during polling. Custom white balance selects an existing calibration; use Canon controls to measure a new reference.
+
+The all-camera-settings button opens the actual camera screen, including Canon's bitmap/menu overlay, with MENU, FUNC./SET, arrows, display and zoom controls. Canon determines which items are available in the current mode. This provides access to the remaining native shooting settings rather than simulating unsupported direct commands. It requires a working CHDK bitmap/palette stream in addition to the existing viewport stream.
+
+Use FUNC./SET for shooting parameters and MENU for the full menu. Optional half-press combinations hold only the half-shutter while sending a selected button and release it afterward, including on failure. Full shutter is never sent by the menu controls. Closing this window uses a short half-press to leave menus, then restores the selected Live View preference.
+
+Image size/compression, drive and timer options, color effects and custom color parameters, autofocus-area/assist options, red-eye and slow-sync settings, long-shutter selection, digital zoom, rotation and grid settings are accessed through Canon's own menus where available. AE/FE operations use Canon's native button combinations. These are controls of the camera, not automatic implementation of burst download or video recording in the application. Capture still downloads JPEG through the existing capture operation.
+
+Direct property readback verifies reported Canon state, not the optical or photographic effect. Additional control values and native menu behavior still require hardware validation on this camera.
