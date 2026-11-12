@@ -31,6 +31,9 @@ struct CameraReply: Decodable {
     var warning: String?
     var overlay: String?
     var file: String?
+    var capturedFiles: [CapturedFile]?
+    var cameraFiles: [String]?
+    var deleted: Bool?
     var displaySupported: Bool?
     var keepBacklightOff: Bool?
 }
@@ -118,7 +121,7 @@ actor CHDKCameraService: CameraService {
             try await Task.sleep(nanoseconds: 300_000_000)
             return try await execute("status", value: nil, output: nil)
         }
-        guard ["status", "poll", "display", "live", "frame", "record", "play", "capture", "mode", "flash", "zoom", "focus", "focusrange", "focusnow", "focuslock", "autofocus", "iso", "wb", "ev", "metering", "screen", "key"].contains(action) else {
+        guard ["take", "finishcapture", "status", "poll", "display", "live", "frame", "record", "play", "capture", "mode", "flash", "zoom", "focus", "focusrange", "focusnow", "focuslock", "autofocus", "iso", "wb", "ev", "metering", "screen", "key"].contains(action) else {
             throw CameraFailure(message: "Неизвестная команда камеры")
         }
         let session = try startWorker()
@@ -129,7 +132,7 @@ actor CHDKCameraService: CameraService {
         let process = session.process
         let timeout = DispatchWorkItem { if process.isRunning { process.terminate() } }
         let forceStop = DispatchWorkItem { if process.isRunning { kill(process.processIdentifier, SIGKILL) } }
-        let limit: Double = action == "capture" ? 90 : 25
+        let limit: Double = (action == "capture" || action == "take") ? 90 : 25
         DispatchQueue.global().asyncAfter(deadline: .now() + limit, execute: timeout)
         DispatchQueue.global().asyncAfter(deadline: .now() + limit + 3, execute: forceStop)
         defer { timeout.cancel(); forceStop.cancel() }

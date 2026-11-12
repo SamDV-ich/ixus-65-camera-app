@@ -99,7 +99,7 @@ struct CameraView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Group {
                     SectionHelpHeader(title: "Съёмка", explanation: "JPEG сохраняется в выбранную папку на Mac. Оригинал остаётся на SD-карте.")
-                    Button(action: { model.capture() }) { Label("Снять и сохранить", systemImage: "camera.fill").frame(maxWidth: .infinity).padding(.vertical, 8) }
+                    Button(action: { model.capture() }) { Label("Снять • " + model.saving.destinationTitle, systemImage: "camera.fill").frame(maxWidth: .infinity).padding(.vertical, 8) }
                         .buttonStyle(.borderedProminent).controlSize(.large).disabled(model.busy || model.state == nil || !model.selectedMode.isPhoto)
                     if model.state?.record == false { Button("Режим съёмки") { model.perform("record") } }
                     Divider()
@@ -179,9 +179,11 @@ struct CameraView: View {
                 }.frame(width: 310).disabled(model.busy || model.state == nil)
             }
             HStack {
-                Image(systemName: "folder")
-                Text(model.folder.path).lineLimit(1).truncationMode(.middle).foregroundColor(.secondary)
-                Spacer(); Button("Выбрать папку…", action: { model.chooseFolder() }).disabled(model.busy)
+                Text(model.saving.destinationTitle).foregroundColor(.secondary)
+                Spacer()
+                if let photo = model.lastPhoto {
+                    Button("Показать сохранённый файл") { NSWorkspace.shared.activateFileViewerSelecting([photo]) }
+                }
             }
             Text(model.message).font(.callout).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
             DisclosureGroup("Журнал") {
@@ -267,11 +269,11 @@ struct NativeCameraControls: View {
     }
 }
 
-struct CameraSettingsView: View {
+struct PreviewSettingsView: View {
     @ObservedObject var model: CameraModel
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Настройки камеры").font(.title2.bold())
+            Text("Предпросмотр и экран").font(.title2.bold())
             HStack {
                 Toggle("Live View", isOn: Binding(
                     get: { model.liveEnabled }, set: { model.setLiveEnabled($0) }
@@ -367,5 +369,112 @@ struct HelpButton: View {
             .padding(16)
             .frame(width: 320)
         }
+    }
+}
+
+struct CameraSettingsView: View {
+    @ObservedObject var model: CameraModel
+    var body: some View {
+        TabView {
+            SaveSettingsView(model: model).tabItem { Label("Сохранение снимков", systemImage: "folder") }
+            PreviewSettingsView(model: model).tabItem { Label("Предпросмотр", systemImage: "viewfinder") }
+        }.padding(12).frame(width: 640, height: 680)
+    }
+}
+
+struct SaveSettingsView: View {
+    @ObservedObject var model: CameraModel
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Сохранение снимков").font(.title2.bold())
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker("Сохранять", selection: Binding(get: { model.saving.destination }, set: { model.setSaveDestination($0) })) {
+                            Text("На камеру и Mac").tag(0)
+                            Text("Только на камеру").tag(1)
+                            Text("Только на Mac").tag(2)
+                        }
+                        if model.saving.destination == 2 {
+                            Text("Оригиналы удаляются с карты только после скачивания и проверки всех файлов на Mac.").font(.caption).foregroundColor(.secondary)
+                        }
+                        if model.saving.destination != 1 {
+                            Text(model.folder.path).textSelection(.enabled).lineLimit(2)
+                            HStack {
+                                Button("Выбрать папку…") { model.chooseFolder() }
+                                Button("Открыть папку") { model.openSaveFolder() }
+                            }
+                        }
+                    }.padding(6)
+                }
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker("Формат", selection: $model.saving.format) {
+                            Text("JPEG камеры (без преобразования)").tag("jpeg")
+                            if model.saving.destination != 1 {
+                                Text("PNG из JPEG").tag("png")
+                                Text("TIFF из JPEG").tag("tiff")
+                            }
+                            Text("CHDK RAW + JPEG").tag("raw")
+                            Text("DNG + JPEG").tag("dng")
+                        }
+                        if ["png", "tiff"].contains(model.saving.format) {
+                            Toggle("Также сохранять оригинальный JPEG", isOn: $model.saving.keepJPEG)
+                            Text("Преобразование не добавляет деталей к исходному JPEG.").font(.caption).foregroundColor(.secondary)
+                        }
+                        if ["raw", "dng"].contains(model.saving.format) {
+                            Text("RAW/DNG на этой камере ещё не проверялись. Сохраняется также JPEG. Если формат недоступен в выбранном режиме, приложение сообщит об ошибке.").font(.caption).foregroundColor(.secondary)
+                        }
+                        Picker("Качество JPEG камеры", selection: $model.saving.quality) {
+                            Text("Как на камере").tag(-1)
+                            Text("Superfine — наилучшее").tag(0)
+                            Text("Fine — высокое").tag(1)
+                            Text("Normal — обычное").tag(2)
+                        }
+                        Picker("Размер JPEG камеры", selection: $model.saving.resolution) {
+                            Text("Как на камере").tag(-1)
+                            Text("L • 2816 × 2112").tag(0)
+                            Text("M1 • 2272 × 1704").tag(1)
+                            Text("M2 • 1600 × 1200").tag(2)
+                            Text("S • 640 × 480").tag(4)
+                            Text("W • 2816 × 1584").tag(8)
+                        }
+                        Text("Выбранные качество и размер используются для следующих снимков. Доступность зависит от режима камеры. RAW не зависит от сжатия JPEG.").font(.caption).foregroundColor(.secondary)
+                        if let settings = model.state?.settings {
+                            Text("С камеры: качество \(qualityName(settings["quality"])), размер \(resolutionName(settings["resolution"]))").font(.caption).foregroundColor(.secondary)
+                        }
+                    }.padding(6)
+                }
+                if model.saving.destination != 1 {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Picker("Имя файла", selection: $model.saving.naming) {
+                                Text("Дата и время").tag("datetime")
+                                Text("Оригинальное имя камеры").tag("original")
+                                Text("Свой шаблон").tag("custom")
+                            }
+                            if model.saving.naming == "custom" {
+                                TextField("Шаблон", text: $model.saving.template)
+                                Text("{date}, {time}, {counter}, {original}. Префикс пишется обычным текстом: Product_{counter}").font(.caption).foregroundColor(.secondary)
+                                TextField("Следующий номер", value: $model.saving.counter, format: .number).frame(maxWidth: 260)
+                            }
+                            Picker("Подпапки", selection: $model.saving.grouping) {
+                                Text("Без подпапок").tag("none")
+                                Text("По дням • 2026-11-12").tag("day")
+                                Text("По месяцам • 2026-11").tag("month")
+                            }
+                            Text(model.saveExample).font(.caption.monospaced()).textSelection(.enabled)
+                            Text("При совпадении имён добавляется номер. Существующие файлы не перезаписываются.").font(.caption).foregroundColor(.secondary)
+                        }.padding(6)
+                    }
+                }
+            }.padding(16)
+        }.disabled(model.busy)
+    }
+    private func qualityName(_ value: Int?) -> String {
+        [0: "Superfine", 1: "Fine", 2: "Normal"][value ?? -1] ?? "—"
+    }
+    private func resolutionName(_ value: Int?) -> String {
+        [0: "L", 1: "M1", 2: "M2", 4: "S", 8: "W"][value ?? -1] ?? "—"
     }
 }

@@ -21,7 +21,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Frameworks" "$RES/chdkptp" "$RES/L
 rsync -a --exclude='.git' --exclude='.svn' --exclude='*.o' --exclude='chdkptp' "$CHDK_SOURCE/" "$RES/Sources/chdkptp/"
 cp "$CHDK_SOURCE/chdkptp" "$RES/chdkptp/chdkptp"
 cp -R "$CHDK_SOURCE/lua" "$RES/chdkptp/"
-cp Resources/ixus_bridge.lua Resources/ixus_profile.lua Resources/ixus_menu.lua "$RES/"
+cp Resources/ixus_bridge.lua Resources/ixus_profile.lua Resources/ixus_menu.lua Resources/ixus_capture.lua "$RES/"
 cp Resources/*COPYING.txt Resources/*LICENSE.txt "$RES/Licenses/"
 cp "$CHDK_SOURCE/COPYING" "$RES/Licenses/CHDKPTP-GPL-2.txt"
 cp -R "$LUA_SOURCE" "$RES/Sources/"

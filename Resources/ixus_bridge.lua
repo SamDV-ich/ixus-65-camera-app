@@ -66,12 +66,12 @@ local function state()
  -- An explicit keep-off policy also handles Canon buttons that wake the lamp.
  -- Reapply within the existing state request, not in the frame-transfer loop.
  local prefix=hold_backlight_off and 'set_backlight(0); ' or ''
- local query=[[local p=require'propcase'; local c=require'capmode'; return {mode=c.get(),modeName=c.get_name(),flash=get_prop(p.FLASH_MODE),zoom=get_zoom(),focus=get_focus(),aflock=get_prop(p.AF_LOCK),focusState=p.FOCUS_STATE and get_prop(p.FOCUS_STATE) or nil,focusRange=p.REAL_FOCUS_MODE and get_prop(p.REAL_FOCUS_MODE) or nil,record=get_mode(),battery=get_vbatt(),batteryMin=get_config_value(2101),batteryMax=get_config_value(2100),settings={iso=get_prop(p.ISO_MODE or 21),wb=get_prop(p.WB_MODE or 5),ev=get_prop(p.EV_CORRECTION_1 or 25),metering=get_prop(p.METERING_MODE or 9)}}]]
+ local query=[[local p=require'propcase'; local c=require'capmode'; return {mode=c.get(),modeName=c.get_name(),flash=get_prop(p.FLASH_MODE),zoom=get_zoom(),focus=get_focus(),aflock=get_prop(p.AF_LOCK),focusState=p.FOCUS_STATE and get_prop(p.FOCUS_STATE) or nil,focusRange=p.REAL_FOCUS_MODE and get_prop(p.REAL_FOCUS_MODE) or nil,record=get_mode(),battery=get_vbatt(),batteryMin=get_config_value(2101),batteryMax=get_config_value(2100),settings={quality=get_prop(p.QUALITY or 23),resolution=get_prop(p.RESOLUTION or 24),iso=get_prop(p.ISO_MODE or 21),wb=get_prop(p.WB_MODE or 5),ev=get_prop(p.EV_CORRECTION_1 or 25),metering=get_prop(p.METERING_MODE or 9)}}]]
  local result=menu_active and menu_rpc('state').state or remote(prefix..query)
  result.controls=profile.controls(result.modeName)
  return result
 end
-local state_query=[[local p=require'propcase'; local c=require'capmode'; return {mode=c.get(),modeName=c.get_name(),flash=get_prop(p.FLASH_MODE),zoom=get_zoom(),focus=get_focus(),aflock=get_prop(p.AF_LOCK),focusState=p.FOCUS_STATE and get_prop(p.FOCUS_STATE) or nil,focusRange=p.REAL_FOCUS_MODE and get_prop(p.REAL_FOCUS_MODE) or nil,record=get_mode(),battery=get_vbatt(),batteryMin=get_config_value(2101),batteryMax=get_config_value(2100),settings={iso=get_prop(p.ISO_MODE or 21),wb=get_prop(p.WB_MODE or 5),ev=get_prop(p.EV_CORRECTION_1 or 25),metering=get_prop(p.METERING_MODE or 9)}}]]
+local state_query=[[local p=require'propcase'; local c=require'capmode'; return {mode=c.get(),modeName=c.get_name(),flash=get_prop(p.FLASH_MODE),zoom=get_zoom(),focus=get_focus(),aflock=get_prop(p.AF_LOCK),focusState=p.FOCUS_STATE and get_prop(p.FOCUS_STATE) or nil,focusRange=p.REAL_FOCUS_MODE and get_prop(p.REAL_FOCUS_MODE) or nil,record=get_mode(),battery=get_vbatt(),batteryMin=get_config_value(2101),batteryMax=get_config_value(2100),settings={quality=get_prop(p.QUALITY or 23),resolution=get_prop(p.RESOLUTION or 24),iso=get_prop(p.ISO_MODE or 21),wb=get_prop(p.WB_MODE or 5),ev=get_prop(p.EV_CORRECTION_1 or 25),metering=get_prop(p.METERING_MODE or 9)}}]]
 local function start_menu()
  if menu_active then return end
  assert(con:live_is_api_compatible(),'Экран камеры недоступен')
@@ -201,6 +201,15 @@ function M.run(action,value,output,request_id)
   elseif action=='record' then
    if not remote('return get_mode()') then local s,e=cli:execute('rec'); assert(s,e) end
    return {state=state()}
+  elseif action=='take' then
+   stop_menu(); assert(close_main(),'Закройте меню камеры')
+   if not remote('return get_mode()') then local s,e=cli:execute('rec'); assert(s,e) end
+   assert(not remote([[return require'capmode'.get_name()]]):match('^VIDEO'),'Выберите режим фотосъёмки вместо видео')
+   local result=require('ixus_capture').take(con,value,output)
+   result.state=state()
+   return result
+  elseif action=='finishcapture' then
+   return require('ixus_capture').finish(con)
   elseif action=='capture' then
    assert(output and not output:find('[\r\n"]'),'Некорректный путь')
    local rec=remote('return get_mode()'); if not rec then local s,e=cli:execute('rec'); assert(s,e) end

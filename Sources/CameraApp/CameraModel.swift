@@ -23,6 +23,9 @@ import SwiftUI
     @Published var lastPhoto: URL?
     @Published var message = "Ищу камеру с CHDK по USB…"
     @Published var error: String?
+    @Published var saving: SaveSettings {
+        didSet { if let data = try? JSONEncoder().encode(saving) { preferences.set(data, forKey: "saveSettings") } }
+    }
     @Published var folder: URL
     @Published var flash = 0
     @Published var availableModes: [CaptureMode] = []
@@ -137,8 +140,9 @@ import SwiftUI
         previewFPS = [0, 5, 10, 15].contains(savedFPS) ? savedFPS : 10
         previewNativeSize = preferences.bool(forKey: "previewNativeSize")
         self.service = service ?? CHDKCameraService(resources: Bundle.main.resourceURL!)
-        let saved = UserDefaults.standard.string(forKey: "photoFolder")
-        folder = saved.map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Pictures/IXUS65")
+        saving = preferences.data(forKey: "saveSettings").flatMap { try? JSONDecoder().decode(SaveSettings.self, from: $0) } ?? SaveSettings()
+        let saved = preferences.string(forKey: "photoFolder")
+        folder = saved.map { URL(fileURLWithPath: $0) } ?? FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Pictures")
     }
     func note(_ text: String) {
         message = text
@@ -239,30 +243,87 @@ import SwiftUI
         panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.canCreateDirectories = true
         panel.prompt = "Сохранять сюда"
         if panel.runModal() == .OK, let url = panel.url {
-            folder = url; UserDefaults.standard.set(url.path, forKey: "photoFolder")
+            folder = url; preferences.set(url.path, forKey: "photoFolder")
         }
     }
+    func setSaveDestination(_ value: Int) {
+        saving.destination = value
+        if value == 1 && ["png", "tiff"].contains(saving.format) { saving.format = "jpeg" }
+    }
+    var saveExample: String {
+        if saving.destination == 1 { return "Оригиналы остаются на карте камеры" }
+        do {
+            try saving.validate()
+            let date = Date()
+            let name = try saving.basename(original: "IMG_6202.JPG", date: date)
+            let ext = saving.format == "jpeg" ? "jpg" : saving.format
+            return saving.directory(folder: folder, date: date).appendingPathComponent(name + "." + ext).path
+        } catch { return error.localizedDescription }
+    }
+    func openSaveFolder() { NSWorkspace.shared.open(folder) }
     func capture() {
         guard !ending, !busy, state != nil else { return }
+        let settings = saving
+        do { try settings.validate() } catch { self.error = error.localizedDescription; return }
+        let selectedFolder = folder
+        let date = Date()
         operationRevision += 1
         let resumeLive = live
         stopLive(); busy = true
         let resumeGeneration = generation
         Task {
-            var succeeded = false
-            defer { busy = false; if succeeded && resumeLive && generation == resumeGeneration { beginLive() } }
+            var canResume = true
+            var staging: URL?
+            var shotRequested = false
+            defer {
+                busy = false
+                if canResume && resumeLive && generation == resumeGeneration { beginLive() }
+            }
             do {
-                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                let formatter = DateFormatter(); formatter.dateFormat = "yyyyMMdd-HHmmss"
-                let url = folder.appendingPathComponent("IXUS65-" + formatter.string(from: Date()) + "-" + UUID().uuidString.prefix(8) + ".JPG")
-                note("Снимаю и сохраняю JPEG…")
-                let reply = try await service.execute("capture", value: nil, output: url)
+                if settings.destination != 1 {
+                    let directory = settings.directory(folder: selectedFolder, date: date)
+                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                    let path = directory.appendingPathComponent(".ixus-" + UUID().uuidString, isDirectory: true)
+                    try FileManager.default.createDirectory(at: path, withIntermediateDirectories: false)
+                    staging = path
+                }
+                note("Снимаю • " + settings.destinationTitle + "…")
+                shotRequested = true
+                let reply: CameraReply
+                do { reply = try await service.execute("take", value: settings.captureCode, output: staging) }
+                catch { canResume = false; connectionFailed(error); throw error }
                 update(reply)
-                guard let image = NSImage(contentsOf: url) else { throw CameraFailure(message: "JPEG скачан, но не удалось открыть изображение: " + url.path) }
-                previewIsLive = false; preview = image; lastPhoto = url; previewLabel = "Последний снимок"
-                succeeded = true
-                note("Сохранён " + url.lastPathComponent + ". Оригинал оставлен на SD-карте.")
-            } catch { connectionFailed(error); note("Ошибка съёмки: " + error.localizedDescription + ". Перед повтором проверьте SD-карту: снимок мог быть сделан.") }
+                saving.counter += 1
+                if settings.destination == 1 {
+                    lastPhoto = nil
+                    note("Сохранено на камере: " + (reply.cameraFiles ?? []).joined(separator: ", "))
+                    return
+                }
+                guard let staging = staging, let files = reply.capturedFiles, !files.isEmpty else { throw CameraFailure(message: "Нет списка скачанных файлов") }
+                let saved = try await Task.detached {
+                    try CaptureFiles.save(staging: staging, files: files, settings: settings, folder: selectedFolder, date: date)
+                }.value
+                lastPhoto = saved.files.first
+                if let url = saved.preview, let image = NSImage(contentsOf: url) {
+                    previewIsLive = false; preview = image; previewLabel = "Последний снимок"
+                }
+                if settings.destination == 2 {
+                    do {
+                        let result = try await service.execute("finishcapture", value: nil, output: nil)
+                        if result.deleted != true { self.error = result.warning ?? "Файлы на Mac сохранены, но удаление с камеры не подтверждено." }
+                    } catch {
+                        canResume = false; connectionFailed(error)
+                        self.error = "Файлы на Mac сохранены. Удаление с камеры не подтверждено: " + error.localizedDescription
+                    }
+                }
+                try? FileManager.default.removeItem(at: staging)
+                note("Сохранено: " + saved.files.map { $0.path }.joined(separator: ", ") + (settings.destination == 0 ? ". Оригиналы оставлены на карте." : ""))
+            } catch {
+                let recovery = staging.map { " Загруженные файлы, если они есть: " + $0.path } ?? ""
+                let warning = shotRequested ? " Снимок мог быть сделан; перед повтором проверьте карту. Оригиналы автоматически не удалялись." : " Съёмка не запускалась."
+                self.error = error.localizedDescription + warning + recovery
+                note(self.error!)
+            }
         }
     }
     func stopLive() {

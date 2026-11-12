@@ -65,3 +65,7 @@ The same hardware session read native ISO property value 1 in the initial Auto m
 The camera confirmed normal/macro/infinity switching, autofocus in Macro at a reported 188 mm, and AF Lock without repeating autofocus. Original playback/record state, remembered shooting mode, flash, zoom, AF Lock and exposure/color properties were restored; the exposure counter remained 6201. This confirms camera-reported success, not full-resolution optical sharpness.
 
 Canon MENU display and FUNC display/navigation were captured. FUNC survived state polling when one camera-side script handled its keys and queries. Scripted directional/FUNC presses were unreliable on this port; logical events and a persistent FUNC session are used instead. The battery reached 0% during validation, so hardware work stopped. The final MENU-close/readback change and last nonfatal autofocus-warning handling were checked with simulators and not rerun on hardware. Details: [HARDWARE-CONTROLS.md](HARDWARE-CONTROLS.md).
+
+## Saving preferences
+
+The application now implements destination selection (camera, camera and Mac, Mac after verified download), OS Pictures default, JPEG/RAW/DNG capture, local PNG/TIFF conversion, quality and resolution preferences, naming templates and day/month folders. The new transaction's offline verification and physical-test limits are recorded in [SAVING.md](SAVING.md). Earlier JPEG hardware success predates this transaction and must not be treated as physical validation of its RAW/DNG or deletion path.

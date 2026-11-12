@@ -34,7 +34,7 @@ Default output: `../builds/ixus-capture/IXUS Camera.app`. The application bundle
 
 [Requirements](docs/REQUIREMENTS.md) · [User guide](docs/APP-GUIDE.md) · [Validation and limitations](docs/STATUS.md)
 
-DNG + JPEG capture is planned; the current application captures JPEG only.
+Saving settings support JPEG, CHDK RAW + JPEG and DNG + JPEG, plus local PNG/TIFF conversion. Destinations, naming and date folders are described in [Saving photographs](docs/SAVING.md). The new capture transaction is simulator-tested; RAW/DNG and post-download deletion have not been exercised on the physical camera.
 
 ## License
 
