@@ -1,0 +1,14 @@
+.DS_Store
+/build/
+/DerivedData/
+/.build/
+/test-results/
+/captures/
+/checks/
+/config.local.sh
+*.app/
+*.dSYM/
+*.log
+*.o
+*.d
+*.swp
