@@ -63,3 +63,7 @@ Tests/CameraIntegration.swift is an additional historical scenario requiring ini
 ## External dependencies
 
 CHDKPTP and Lua installations are outside the application repository, under the workspace's tools directory or paths supplied in the environment. Compatibility symlinks preserve old workspace paths. The generated bundle contains the components needed by end users.
+
+### Focus controls hardware test
+
+After separate preparation/authorization: `./scripts/test.sh --focus-controls`. Use a charged battery, initial Auto/P/Portrait mode and a detailed lit target approximately 15-25 cm away. The test temporarily selects P and wide angle, reads back native focus ranges, autofocuses in Macro, locks the found focus without refocusing and restores its baseline without a photograph. Its tested body was captured during hardware validation; the final wrapper/guards were syntax-checked without another physical run. See [HARDWARE-CONTROLS.md](HARDWARE-CONTROLS.md).

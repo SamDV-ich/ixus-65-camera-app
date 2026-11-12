@@ -38,9 +38,9 @@ Historical reports, photographs and test logs are outside this application repos
 
 ## Native focus range
 
-The focus-range picker reads PROPCASE_REAL_FOCUS_MODE (11 in propset1), separately from PROPCASE_FOCUS_MODE (12, manual focus). It selects normal/macro/infinity using the IXUS 65 native left button, releases AF Lock and verifies the resulting property. Selection uses at most three button presses; failure attempts to restore the initial range and AF Lock. Camera menus must be closed. Readback confirms Canon state, not optical accuracy.
+The focus-range picker reads PROPCASE_REAL_FOCUS_MODE (11 in propset1), separately from PROPCASE_FOCUS_MODE (12, manual focus). It selects normal/macro/infinity using the IXUS 65 dedicated Canon Macro logical event in a short continuous camera session, releases AF Lock and verifies the resulting property. Selection uses at most three button presses; failure attempts to restore the initial range and AF Lock. Camera menus must be closed. Readback confirms Canon state, not optical accuracy.
 
-Simulated tests cover all three values, AF Lock release, unsupported and invalid selections, and camera-side macro synchronization. Physical behavior on this IXUS 65 still requires validation. Sources: [CHDK propset1](https://github.com/pelrun/CHDK/blob/master/include/propset1.h), [CHDK focus state conversion](https://github.com/pelrun/CHDK/blob/master/core/shooting.c), [IXUS 65 keyboard mapping](https://github.com/pelrun/CHDK/blob/master/platform/ixus65_sd630/kbd.c), and the Canon guides linked above.
+Simulated tests cover all three values, AF Lock release, unsupported and invalid selections, and camera-side macro synchronization. Normal/macro/infinity readback was subsequently validated on this IXUS 65; see the hardware report below. Sources: [CHDK propset1](https://github.com/pelrun/CHDK/blob/master/include/propset1.h), [CHDK focus state conversion](https://github.com/pelrun/CHDK/blob/master/core/shooting.c), [IXUS 65 keyboard mapping](https://github.com/pelrun/CHDK/blob/master/platform/ixus65_sd630/kbd.c), and the Canon guides linked above.
 
 ## Simple focus controls and mode restrictions
 
@@ -59,3 +59,9 @@ Simulation covers exposure readback, unavailable-mode rejection, menu keys, half
 The hardware test received the Canon bitmap/palette screen and restored its initial state with exposure counter 6201 unchanged. It also exposed a CHDK Lua 5.1 limitation: press/release/sleep cannot yield through pcall. Focus and half-press combinations now wait outside protected camera calls, release before reporting timeouts, and include a host-side release attempt for unexpected script errors. Simulated camera calls reject yielding inside pcall to prevent recurrence. Key sequences allow a settling delay after releasing half-shutter. Autofocus success still needs a sufficiently lit, detailed subject; a dark scene correctly returned a focus failure.
 
 The same hardware session read native ISO property value 1 in the initial Auto mode (get_iso_mode returned 0, so that API cannot distinguish the native value here). High Auto ISO now uses the native property value 1 rather than the CHDK ISO-table ID -1. No ISO change was made by this diagnostic. The native mapping is also documented in the CHDK [uBASIC guide](https://images2.wikia.nocookie.net/chdk/images/0/05/UBASIC_User_Guide_D0_2.pdf).
+
+## Hardware validation follow-up
+
+The camera confirmed normal/macro/infinity switching, autofocus in Macro at a reported 188 mm, and AF Lock without repeating autofocus. Original playback/record state, remembered shooting mode, flash, zoom, AF Lock and exposure/color properties were restored; the exposure counter remained 6201. This confirms camera-reported success, not full-resolution optical sharpness.
+
+Canon MENU display and FUNC display/navigation were captured. FUNC survived state polling when one camera-side script handled its keys and queries. Scripted directional/FUNC presses were unreliable on this port; logical events and a persistent FUNC session are used instead. The battery reached 0% during validation, so hardware work stopped. The final MENU-close/readback change and last nonfatal autofocus-warning handling were checked with simulators and not rerun on hardware. Details: [HARDWARE-CONTROLS.md](HARDWARE-CONTROLS.md).

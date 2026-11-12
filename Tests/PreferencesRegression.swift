@@ -4,6 +4,8 @@ import Darwin
 
 actor PreferencesCamera: CameraService {
     var actions: [String] = []
+    var rejectFocus = false
+    func setRejectFocus(_ reject: Bool) { rejectFocus = reject }
     let supported: Bool
     init(supported: Bool = true) { self.supported = supported }
     func recordedActions() -> [String] { actions }
@@ -15,7 +17,9 @@ actor PreferencesCamera: CameraService {
             return CameraReply(file: output!.path)
         }
         if action == "display" { return CameraReply(keepBacklightOff: value == 0) }
-        return CameraReply(state: CameraState(mode: 1, modeName: "AUTO", flash: 0, zoom: 0, focus: 1000, aflock: 0, record: true, battery: 3800), live: supported, displaySupported: supported)
+        let current = CameraState(mode: 1, modeName: "AUTO", flash: 0, zoom: 0, focus: 1000, aflock: action == "focuslock" ? (value ?? 0) : 0, focusState: action == "focusnow" && rejectFocus ? 0 : 1, record: true, battery: 3800)
+        if action == "focusnow" { return CameraReply(state: current, focusSucceeded: !rejectFocus, warning: rejectFocus ? "Cannot focus" : nil) }
+        return CameraReply(state: current, live: supported, displaySupported: supported)
     }
 }
 @main struct PreferencesRegression {
@@ -39,6 +43,14 @@ actor PreferencesCamera: CameraService {
             let actions = await camera.recordedActions()
             guard Array(actions.prefix(3)) == ["status", "live", "display:0"] else { throw CameraFailure(message: "Connection defaults order: \(actions)") }
             print("PASS: first connection starts preview, then disables backlight, on one service")
+            await camera.setRejectFocus(true)
+            model.focusNow()
+            try await waitFor { !model.busy && model.live && model.focusProblem != nil }
+            guard model.state != nil && model.error == nil else { throw CameraFailure(message: "Normal focus refusal disconnected the camera") }
+            await camera.setRejectFocus(false)
+            model.focusNow()
+            try await waitFor { !model.busy && model.live && model.focusProblem == nil }
+            print("PASS: autofocus refusal preserves preview and connection; a successful retry clears the warning")
             model.setBacklightOffEnabled(false)
             try await waitFor { !model.busy && !model.keepBacklightOff && model.live }
             model.setLiveEnabled(false)
@@ -67,6 +79,15 @@ actor PreferencesCamera: CameraService {
             let focusActions = await focusCamera.recordedActions()
             guard focusActions == ["focusnow:0"] else { throw CameraFailure(message: "Focus button applied an old manual draft or unsupported lock") }
             await focusModel.shutdown()
+            let lockCamera = PreferencesCamera(supported: false)
+            let lockModel = CameraModel(service: lockCamera, preferences: preferences)
+            lockModel.update(CameraReply(state: CameraState(mode: 2, modeName: "P", flash: 0, zoom: 0, focus: 1000, aflock: 0, controls: ["focuslock": [0,1]], focusState: 1, record: true, battery: 3800)))
+            lockModel.setFocusLocked(true)
+            try await waitFor { !lockModel.busy }
+            let lockActions = await lockCamera.recordedActions()
+            guard lockActions == ["focuslock:1"] && lockModel.state?.aflock == 1 else { throw CameraFailure(message: "Locking repeated autofocus instead of retaining the found distance") }
+            await lockModel.shutdown()
+            print("PASS: locking a confirmed focus does not run autofocus again")
             print("PASS: autofocus discards an unapplied distance and avoids locking in unsupported modes")
             let unsupportedCamera = PreferencesCamera(supported: false)
             let unsupported = CameraModel(service: unsupportedCamera, preferences: preferences)

@@ -12,6 +12,7 @@ swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /pri
 "$TEST_DIR/regression"
 swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Tests/ConnectionRegression.swift -o "$TEST_DIR/connection"
 "$TEST_DIR/connection"
+env LUA_PATH="Resources/?.lua;;" "$LUA_BIN" Tests/MenuSessionRegression.lua
 "$LUA_BIN" Tests/BridgeRegression.lua Resources/ixus_bridge.lua "$TEST_DIR/camera-state.json"
 swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Sources/CameraApp/CameraModel.swift Tests/SettingsRegression.swift -o "$TEST_DIR/settings"
 "$TEST_DIR/settings" "$TEST_DIR/camera-state.json"
@@ -27,4 +28,9 @@ fi
 
 if [[ "${1:-}" == "--backlight-policy" ]]; then
     env LUA_PATH="$APP_PATH/Contents/Resources/?.lua;$APP_PATH/Contents/Resources/chdkptp/lua/?.lua" IXUS_POLICY_TEST="$PROJECT_ROOT/Tests/BacklightPolicyIntegration.lua" "$APP_PATH/Contents/Resources/chdkptp/chdkptp" -r "-e!dofile(os.getenv('IXUS_POLICY_TEST'))"
+fi
+
+if [[ "${1:-}" == "--focus-controls" ]]; then
+    mkdir -p "$TEST_DIR/camera-controls"
+    env LUA_PATH="$APP_PATH/Contents/Resources/?.lua;$APP_PATH/Contents/Resources/chdkptp/lua/?.lua" IXUS_TEST_OUTPUT_DIR="$TEST_DIR/camera-controls" IXUS_FOCUS_TEST="$PROJECT_ROOT/Tests/FocusControlsIntegration.lua" "$APP_PATH/Contents/Resources/chdkptp/chdkptp" -r "-e!dofile(os.getenv('IXUS_FOCUS_TEST'))"
 fi

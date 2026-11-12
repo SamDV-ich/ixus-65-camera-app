@@ -24,6 +24,7 @@ import SwiftUI
     @Published var availableModes: [CaptureMode] = []
     @Published var mode = 1
     @Published var zoom = 0
+    @Published var focusProblem: String?
     @Published var focusRange: Int?
     @Published var focusText = "1000"
     @Published var displaySupported = false
@@ -79,7 +80,7 @@ import SwiftUI
     func connectionFailed(_ error: Error, quietly: Bool = false) {
         let text = error.localizedDescription
         nextSearchAt = Date().addingTimeInterval(reconnectInterval)
-        state = nil; focusRange = nil; availableModes = []; liveSupported = false; displaySupported = false; keepBacklightOff = false
+        state = nil; focusProblem = nil; focusRange = nil; availableModes = []; liveSupported = false; displaySupported = false; keepBacklightOff = false
         connectionKind = text.contains("IXUS_BUSY:") ? "occupied" : (text.contains("IXUS_ABSENT:") ? "absent" : "unavailable")
         connection = connectionKind == "occupied" ? "Камера занята" : (connectionKind == "absent" ? "Камера не найдена" : "Камера недоступна")
         let clean = text.replacingOccurrences(of: "IXUS_BUSY: ", with: "").replacingOccurrences(of: "IXUS_ABSENT: ", with: "")
@@ -134,10 +135,18 @@ import SwiftUI
         if let state = state { focusText = String(state.focus) }
         perform("focusnow", value: shouldLock ? 1 : 0)
     }
+    func setFocusLocked(_ locked: Bool) {
+        if !locked { perform("autofocus") }
+        else if state?.focusState == 1 { perform("focuslock", value: 1) }
+        else { focusNow(lock: true) }
+    }
     var selectedMode: CaptureMode {
         availableModes.first { $0.id == mode } ?? CaptureMode(id: mode, name: state?.modeName ?? "AUTO")
     }
     func update(_ reply: CameraReply) {
+        if let focused = reply.focusSucceeded {
+            focusProblem = focused ? nil : (reply.warning ?? "Не удалось навести резкость.")
+        }
         if let modes = reply.modes {
             availableModes = modes.compactMap { key, name in
                 guard let id = Int(key), id > 0 else { return nil }
@@ -186,8 +195,15 @@ import SwiftUI
                 if quietly && !wasConnected { note("Камера подключена. Готова к работе.") }
                 if action == "display" {
                     note(keepBacklightOff ? "Подсветка будет оставаться выключенной; приложение повторяет команду автоматически." : "Удержание подсветки выключенной отключено; команда включения отправлена.")
+                } else if action == "key" {
+                    note("Команда отправлена камере.")
+                } else if action == "focusnow", let problem = focusProblem {
+                    note(problem)
                 } else if action == "focusnow" {
                     note(state?.aflock == 1 ? "Резкость наведена и зафиксирована." : "Резкость наведена. При съёмке камера сфокусируется снова.")
+                } else if action == "focuslock" || action == "focus" {
+                    focusProblem = nil
+                    note(state?.aflock == 1 ? "Фокус зафиксирован." : "Фиксация фокуса снята.")
                 } else if !quietly { note(action == "status" ? "Камера подключена. CHDK \(reply.build?.build_number ?? "") / \(reply.build?.platsub ?? "")." : "Настройка применена; состояние прочитано с камеры.") }
             } catch { connectionFailed(error, quietly: quietly) }
         }

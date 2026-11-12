@@ -149,12 +149,17 @@ struct CameraView: View {
                     if !model.options("focuslock").isEmpty {
                         Toggle("Зафиксировать фокус", isOn: Binding(
                             get: { model.state?.aflock == 1 },
-                            set: { if $0 { model.focusNow(lock: true) } else { model.perform("autofocus") } }
+                            set: { model.setFocusLocked($0) }
                         ))
                     }
-                    if let state = model.state {
-                        Label(state.aflock == 1 ? "Фокус зафиксирован" : "Автофокус при съёмке", systemImage: state.aflock == 1 ? "lock.fill" : "viewfinder")
-                            .font(.caption).foregroundColor(.secondary)
+                    Group {
+                        if let problem = model.focusProblem {
+                            Text(problem).font(.caption).foregroundColor(.orange)
+                        }
+                        if let state = model.state {
+                            Label(state.aflock == 1 ? "Фокус зафиксирован" : "Автофокус при съёмке", systemImage: state.aflock == 1 ? "lock.fill" : "viewfinder")
+                                .font(.caption).foregroundColor(.secondary)
+                        }
                     }
                     if !model.options("focus").isEmpty {
                         DisclosureGroup("Ручная дистанция") {
@@ -235,7 +240,7 @@ struct NativeCameraControls: View {
         VStack(spacing: 16) {
             HStack {
                 Text("Все настройки камеры").font(.title2.bold())
-                HelpButton(title: "Штатное меню Canon", explanation: "Это экран и кнопки самой камеры. FUNC./SET открывает параметры съёмки, MENU — полное меню. Стрелки выбирают пункт и значение, FUNC./SET подтверждает. Доступные функции определяет сама камера для выбранного режима.\n\nЗдесь доступны размер и качество JPEG, таймер и серия, замер, цветовые эффекты, баланс белого и другие параметры Canon. При закрытии камера получает только полунажатие для выхода из меню — снимка не будет.")
+                HelpButton(title: "Штатное меню Canon", explanation: "Это экран и кнопки самой камеры. FUNC открывает параметры съёмки. MENU выполняет действие выбранного параметра или открывает главное меню после выхода из FUNC. Стрелки выбирают пункт и значение, SET подтверждает. Доступные функции определяет сама камера для выбранного режима.\n\nЗдесь доступны размер и качество JPEG, таймер и серия, замер, цветовые эффекты, баланс белого и другие параметры Canon. При закрытии приложение завершает открытое им меню через MENU или SET, без спуска затвора.")
                 Spacer()
                 Button("Готово") { dismiss() }.disabled(model.busy)
             }
@@ -244,10 +249,10 @@ struct NativeCameraControls: View {
                 if let image = model.preview { Image(nsImage: image).resizable().aspectRatio(contentMode: .fit) }
             }.frame(width: 640, height: 480)
             HStack(spacing: 24) {
-                VStack { key("MENU", 0); key("DISP.", 6) }
+                VStack { key("MENU", 0); key("FUNC", 1); key("DISP.", 6) }
                 VStack {
                     key("↑", 2).accessibilityLabel("Вверх")
-                    HStack { key("←", 4).accessibilityLabel("Влево"); key("FUNC./SET", 1); key("→", 5).accessibilityLabel("Вправо") }
+                    HStack { key("←", 4).accessibilityLabel("Влево"); key("SET", 9); key("→", 5).accessibilityLabel("Вправо") }
                     key("↓", 3).accessibilityLabel("Вниз")
                 }
                 VStack { key("Зум +", 7); key("Зум −", 8) }

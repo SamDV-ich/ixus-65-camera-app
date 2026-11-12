@@ -18,6 +18,7 @@ for f in files:
 assert (app/'Contents/Resources/chdkptp/lua/main.lua').is_file()
 assert (app/'Contents/Resources/ixus_bridge.lua').is_file()
 assert (app/'Contents/Resources/ixus_profile.lua').is_file()
+assert (app/'Contents/Resources/ixus_menu.lua').is_file()
 assert len(list((app/'Contents/Resources/Licenses').glob('*')))>=4
 print('PASS: Intel executables, bundled Lua, USB libraries, licenses, no Homebrew loader paths')
 PY

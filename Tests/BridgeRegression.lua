@@ -5,7 +5,7 @@ local bridge_path=arg[1]
 package.path='Resources/?.lua;'..package.path
 local function scenario(lines, fail_off, initially_connected, physical_wake, block_range, fail_focus)
  local connected=initially_connected~=false
- local calls={}; local connects=0; local lcd=1; local mode=1; local focus_range=0; local aflock=1; local half=false; local ticks=0; local props={}; local protected_camera_call=false
+ local calls={}; local connects=0; local lcd=1; local mode=1; local focus_range=0; local aflock=1; local half=false; local ticks=0; local props={}; local protected_camera_call=false; local menu_thread; local menu_starts=0; local messages={}; local main_panel=false
  package.preload.propcase=function() return {FLASH_MODE=16,AF_LOCK=193,REAL_FOCUS_MODE=11,FOCUS_STATE=67,ISO_MODE=21,WB_MODE=5,EV_CORRECTION_1=25,EV_CORRECTION_2=26,METERING_MODE=9} end
  package.loaded.capmode=nil
  package.preload.capmode=function() return {
@@ -21,12 +21,28 @@ local function scenario(lines, fail_off, initially_connected, physical_wake, blo
  set_aflock=function(value) aflock=value and 1 or 0 end
  click=function(key)
   assert(not protected_camera_call,'Camera Lua 5.1 cannot yield through pcall')
-  assert(key~='shoot_full'); if key~='left' then calls[#calls+1]='key-'..key; return end
+  assert(key~='shoot_full'); if key=='menu' then main_panel=not main_panel end; if key~='left' then calls[#calls+1]='key-'..key; return end
   calls[#calls+1]='range-button'
   if not block_range then focus_range=({[0]=1,[1]=3,[3]=0})[focus_range] end
  end
+ get_levent_def=function(name) return name,1,0 end
+ post_levent_for_npt=function(event)
+  assert(not event:find('SwTwo'),'Full shutter is forbidden')
+  if event=='PressSwOne' then half=true; calls[#calls+1]='half-press'; return end
+  if event=='UnpressSwOne' then half=false; calls[#calls+1]='half-release'; return end
+  if event:match('^Press') then
+   local names={PressFuncButton='func',PressSetButton='set',PressUpButton='up',PressDownButton='down',PressMacroButton='left',PressLeftButton='left',PressRightButton='right',PressMenuButton='menu',PressDispButton='display',PressTeleButton='zoom_in',PressWideButton='zoom_out'}
+   assert(names[event],event); click(names[event])
+  end
+ end
+ post_levent_to_ui=post_levent_for_npt
+ enter_alt=function() end
+ exit_alt=function() end
+ read_usb_msg=function() return coroutine.yield() end
+ write_usb_msg=function(value) messages[#messages+1]=value end
  get_tick_count=function() return ticks end
  get_shooting=function() return half end
+ get_focus_ok=function() return half and not fail_focus end
  press=function(key) assert(not protected_camera_call,'Camera Lua 5.1 cannot yield through pcall'); assert(key=='shoot_half'); half=true; calls[#calls+1]='half-press' end
  release=function(key) assert(not protected_camera_call,'Camera Lua 5.1 cannot yield through pcall'); assert(key=='shoot_half'); half=false; calls[#calls+1]='half-release' end
  sleep=function(ms) assert(not protected_camera_call,'Camera Lua 5.1 cannot yield through pcall'); ticks=ticks+ms end
@@ -43,7 +59,21 @@ local function scenario(lines, fail_off, initially_connected, physical_wake, blo
  end}
  con={is_connected=function() return connected end,
       disconnect=function() calls[#calls+1]='disconnect'; connected=false end,
+      exec=function(_,code)
+       assert(not menu_thread or coroutine.status(menu_thread)=='dead','Camera script already running')
+       menu_starts=menu_starts+1
+       menu_thread=coroutine.create(assert(load(code)))
+       local ok,err=coroutine.resume(menu_thread); assert(ok,err)
+      end,
+      write_msg=function(_,message)
+       assert(menu_thread and coroutine.status(menu_thread)~='dead','No menu script')
+       local ok,err=coroutine.resume(menu_thread,message); assert(ok,err)
+      end,
+      wait_msg=function() local value=table.remove(messages,1); assert(value,'Missing camera message'); return value end,
+      wait_status=function() return {run=menu_thread and coroutine.status(menu_thread)~='dead',timeout=false} end,
+      flushmsgs=function() messages={} end,
       execwait=function(_,code)
+       assert(not menu_thread or coroutine.status(menu_thread)=='dead','State reads must use existing menu script')
        local env=setmetatable({pcall=function(fn,...)
         protected_camera_call=true
         local results=table.pack(pcall(fn,...))
@@ -53,9 +83,12 @@ local function scenario(lines, fail_off, initially_connected, physical_wake, blo
        return assert(load(code,nil,'t',env))()
       end,
       live_is_api_compatible=function() return true end,
-      live={_frame={}}, live_get_frame=function(_,flags) assert(flags==1 or flags==13) end}
+      live={_frame={}}, live_get_frame=function(self,flags) assert(flags==1 or flags==13); self.live._frame.main_panel=main_panel end}
+ local bitmap={to_lbuf_packed_rgba=function() return {string=function() return string.rep(main_panel and string.char(255,255,255,255) or string.char(255,255,255,0),4) end} end}
+ package.loaded.liveimg={get_bitmap_pimg=function() return bitmap end}
+ if _G.ixus_test_pixels then package.loaded.liveimg=_G.ixus_test_pixels end
  local responses={}
- print=function(value) responses[#responses+1]=value end
+ print=function(value) if tostring(value):match('^IXUS_RESULT:') then responses[#responses+1]=value end end
  io.lines=function() local n=0; return function()
   n=n+1
   if physical_wake and n==2 then mode=2; lcd=1; calls[#calls+1]='canon-wake' end
@@ -63,7 +96,7 @@ local function scenario(lines, fail_off, initially_connected, physical_wake, blo
  end end
  assert(loadfile(bridge_path))().worker()
  print=original_print; io.lines=original_lines
- return table.concat(calls,','),lcd,connects,responses
+ return table.concat(calls,','),lcd,connects,responses,menu_starts
 end
 local calls,lcd=scenario({'display\t0\t\t1','poll\t\t\t2','QUIT'})
 assert(calls=='display0,display0,display1,disconnect' and lcd==1,calls)
@@ -119,7 +152,7 @@ local calls,_,_,responses=scenario({'mode\t2\t\t0','focusnow\t1\t\t1','QUIT'})
 assert(responses[2]:match('"ok":true') and responses[2]:match('"aflock":1'),responses[2])
 assert(calls:match('half%-press,half%-release'),calls)
 local calls,_,_,responses=scenario({'focusnow\t0\t\t1','QUIT'},false,true,false,false,true)
-assert(responses[1]:match('"ok":false') and calls:match('half%-release'),responses[1])
+assert(responses[1]:match('"ok":true') and responses[1]:match('"focusSucceeded":false') and calls:match('half%-release'),responses[1])
 original_print('PASS: focus now uses half-press only, locks on success and releases on timeout')
 
 local _,_,_,responses=scenario({'mode\t2\t\t0','iso\t80\t\t1','wb\t3\t\t2','ev\t64\t\t3','metering\t2\t\t4','QUIT'})
@@ -128,23 +161,23 @@ local _,_,_,responses=scenario({'ev\t32\t\t1','QUIT'})
 assert(responses[1]:match('"ok":false'),responses[1])
 original_print('PASS: exposure controls read back values and reject unavailable Auto-mode changes')
 local calls,_,_,responses=scenario({'screen\t1\t\t1','key\t1\t\t2','key\t2\t\t3','screen\t0\t\t4','QUIT'})
-assert(responses[4]:match('"ok":true') and calls:match('key%-set') and calls:match('key%-up') and calls:match('half%-press,half%-release'),calls)
+assert(responses[4]:match('"ok":true') and calls:match('key%-func') and calls:match('key%-up') and calls:match('key%-set'),calls)
 local _,_,_,responses=scenario({'screen\t1\t\t1','key\t999\t\t2','QUIT'})
 assert(responses[2]:match('"ok":false'),responses[2])
-original_print('PASS: native menu accepts bounded keys and closes with a half-press, never a full press')
+original_print('PASS: native menu accepts bounded logical keys and closes through MENU or SET without autofocus')
 local function pixels(channels)
  return {width=function() return 2 end,height=function() return 2 end,
   to_lbuf_packed_rgb=function() return {fwrite=function(_,f) f:write(string.rep(string.char(100),12)) end} end,
-  to_lbuf_packed_rgba=function() return {fwrite=function(_,f) f:write(string.rep(string.char(255),16)) end} end}
+  to_lbuf_packed_rgba=function() return {string=function() return string.rep(string.char(0),16) end,fwrite=function(_,f) f:write(string.rep(string.char(255),16)) end} end}
 end
-package.loaded.liveimg={get_viewport_pimg=function() return pixels(3) end,get_bitmap_pimg=function() return pixels(4) end}
+_G.ixus_test_pixels={get_viewport_pimg=function() return pixels(3) end,get_bitmap_pimg=function() return pixels(4) end}
 local path=os.tmpname()
 local hex=path:gsub('.',function(c) return string.format('%02x',c:byte()) end)
 local _,_,_,responses=scenario({'screen\t1\t\t1','frame\t\t'..hex..'\t2','QUIT'})
 assert(responses[2]:match('"ok":true') and responses[2]:match('"overlay":'),responses[2])
 local f=assert(io.open(path..'.rgba','rb')); local overlay=f:read('*a'); f:close()
 assert(overlay=='RGBA\n2 2\n'..string.rep(string.char(255),16))
-os.remove(path); os.remove(path..'.rgba')
+os.remove(path); os.remove(path..'.rgba'); _G.ixus_test_pixels=nil
 original_print('PASS: native screen writes the bitmap palette overlay beside the viewport frame')
 if arg[2] then
  local _,_,_,responses=scenario({'mode\t2\t\t0','status\t\t\t1','QUIT'})
@@ -166,3 +199,12 @@ original_print('PASS: Canon mode restrictions exclude unavailable flash and focu
 assert(profile.allows(profile.controls('AUTO'),'iso',1))
 assert(not profile.allows(profile.controls('AUTO'),'iso',-1))
 original_print('PASS: High Auto ISO uses native property value 1 rather than a CHDK ISO table ID')
+
+local _,_,connects,responses=scenario({'focusnow\t0\t\t1','poll\t\t\t2','QUIT'},false,true,false,false,true)
+assert(responses[1]:match('"focusSucceeded":false') and responses[2]:match('"ok":true') and connects==0 and responses[1]:match('"connectionGeneration":(%d+)')==responses[2]:match('"connectionGeneration":(%d+)'))
+original_print('PASS: ordinary autofocus refusal preserves the connected session and subsequent polling')
+
+local calls,_,_,responses,starts=scenario({'screen\t1\t\t1','key\t0\t\t2','key\t1\t\t3','poll\t\t\t4','key\t3\t\t5','key\t9\t\t6','screen\t0\t\t7','QUIT'})
+for _,response in ipairs(responses) do assert(response:match('"ok":true'),response) end
+assert(starts==1 and not calls:find('half-press',1,true),calls)
+original_print('PASS: MENU closes by bitmap readback before one persistent FUNC session; no autofocus is started')
