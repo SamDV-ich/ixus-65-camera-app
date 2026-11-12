@@ -111,46 +111,57 @@ struct CameraView: View {
                         }
                         HelpButton(title: "Режим: \(model.selectedMode.title)", explanation: model.selectedMode.explanation)
                     }
+                    if !model.options("flash").isEmpty {
                     HStack {
                         Picker("Вспышка", selection: Binding(get: { model.flash }, set: { model.select("flash", value: $0) })) {
-                            Text("Авто").tag(0); Text("Включена").tag(1); Text("Выключена").tag(2)
+                            ForEach(model.options("flash"), id: \.self) { value in
+                                Text(value == 0 ? "Авто" : (value == 1 ? "Включена" : "Выключена")).tag(value)
+                            }
                         }
 
                     }
+                    }
+                    if !model.options("zoom").isEmpty {
                     HStack {
                         Picker("Зум", selection: Binding(get: { model.zoom }, set: { model.select("zoom", value: $0) })) { ForEach(0..<7) { Text("\($0 + 1) / 7").tag($0) } }
 
                     }
                     }
+                    }
                     Divider()
-                    SectionHelpHeader(title: "Фокус", explanation: "Введите дистанцию в миллиметрах и нажмите Enter или перейдите к другому полю — значение применится автоматически.\n\nДистанция приблизительная. Для проверки резкости используйте предпросмотр. Кнопка «Автофокус» снимает фиксацию фокуса.")
-                    HStack {
-                        Picker("Диапазон", selection: Binding(
-                            get: { model.focusRange ?? -1 },
-                            set: { model.select("focusrange", value: $0) }
-                        )) {
-                            Text("Обычный").tag(0)
-                            Text("Макро").tag(1)
-                            Text("Бесконечность").tag(3)
-                            if let range = model.focusRange, ![0, 1, 3].contains(range) {
-                                Text("Другой (\(range))").tag(range)
-                            } else if model.focusRange == nil {
-                                Text("Недоступно").tag(-1)
+                    SectionHelpHeader(title: "Фокус", explanation: "Выберите диапазон, затем нажмите «Навести резкость». Камера выполнит автофокусировку без снимка.\n\n«Зафиксировать» удерживает найденный фокус, чтобы камера не меняла его при съёмке. Отключите фиксацию для обычного автофокуса. Для пересъёмки плёнки удобно один раз навести резкость и зафиксировать её. Ручная дистанция находится в дополнительных настройках и является приблизительной.")
+                    if !model.options("focusrange").isEmpty {
+                        Picker("Диапазон", selection: Binding(get: { model.focusRange ?? -1 }, set: { model.select("focusrange", value: $0) })) {
+                            ForEach(model.options("focusrange"), id: \.self) { value in
+                                Text(value == 0 ? "Обычный" : (value == 1 ? "Макро" : "Бесконечность")).tag(value)
                             }
+                            if let current = model.focusRange, !model.options("focusrange").contains(current) { Text("Другой (\(current))").tag(current) }
+                            if model.focusRange == nil { Text("Недоступно").tag(-1) }
                         }.disabled(model.focusRange == nil)
-                        HelpButton(title: "Диапазон фокуса", explanation: "Обычный — стандартный автофокус. Макро — для близких предметов: на широком угле IXUS 65 позволяет снимать примерно от 3 см, на максимальном оптическом зуме — от 30 см. Бесконечность — для удалённых объектов примерно от 3 м.\n\nЭто штатные режимы Canon, а не ввод точной дистанции. Выбор снимает фиксацию фокуса. Некоторые режимы съёмки ограничивают доступные диапазоны. Меню на самой камере должно быть закрыто.")
                     }
-                    HStack {
-                        TextField("Дистанция, мм", text: Binding(get: { model.focusText }, set: { model.editFocus($0) })).frame(width: 100).focused($focusEditing).onSubmit { focusEditing = false }
-                            .onChange(of: focusEditing) { editing in
-                                if editing { model.focusEditing = true } else { model.finishFocusEditing() }
-                            }
-                        Text("мм").foregroundColor(.secondary)
-
+                    Button("Навести резкость") { model.focusNow() }
+                    if !model.options("focuslock").isEmpty {
+                        Toggle("Зафиксировать фокус", isOn: Binding(
+                            get: { model.state?.aflock == 1 },
+                            set: { if $0 { model.focusNow(lock: true) } else { model.perform("autofocus") } }
+                        ))
                     }
-                    Button("Автофокус") { model.perform("autofocus") }
                     if let state = model.state {
-                        Text("\(state.aflock == 1 ? "Фокус зафиксирован" : "Автофокус") • камера сообщает \(state.focus) мм").font(.caption).foregroundColor(.secondary)
+                        Label(state.aflock == 1 ? "Фокус зафиксирован" : "Автофокус при съёмке", systemImage: state.aflock == 1 ? "lock.fill" : "viewfinder")
+                            .font(.caption).foregroundColor(.secondary)
+                    }
+                    if !model.options("focus").isEmpty {
+                        DisclosureGroup("Ручная дистанция") {
+                            HStack {
+                                TextField("Дистанция, мм", text: Binding(get: { model.focusText }, set: { model.editFocus($0) }))
+                                    .frame(width: 100).focused($focusEditing).onSubmit { focusEditing = false }
+                                    .onChange(of: focusEditing) { editing in
+                                        if editing { model.focusEditing = true } else { model.finishFocusEditing() }
+                                    }
+                                Text("мм").foregroundColor(.secondary)
+                                HelpButton(title: "Ручная дистанция", explanation: "Приблизительная дистанция 100–10000 мм. Применяется по Enter или при выходе из изменённого поля и включает фиксацию фокуса. Это не измерение резкости; сначала попробуйте кнопку «Навести резкость».")
+                            }.padding(.top, 6)
+                        }
                     }
                     Spacer()
                 }

@@ -1,5 +1,6 @@
 -- Host-side adapter for the IXUS 65 profile; modes are validated by camera CHDK.
 local M={}
+local profile=require'ixus_profile'
 local function json(v)
  if type(v)=='boolean' or type(v)=='number' then return tostring(v) end
  if v==nil then return 'null' end
@@ -13,7 +14,9 @@ local function state()
  -- An explicit keep-off policy also handles Canon buttons that wake the lamp.
  -- Reapply within the existing state request, not in the frame-transfer loop.
  local prefix=hold_backlight_off and 'set_backlight(0); ' or ''
- return remote(prefix..[[local p=require'propcase'; local c=require'capmode'; return {mode=c.get(),modeName=c.get_name(),flash=get_prop(p.FLASH_MODE),zoom=get_zoom(),focus=get_focus(),aflock=get_prop(p.AF_LOCK),focusRange=p.REAL_FOCUS_MODE and get_prop(p.REAL_FOCUS_MODE) or nil,record=get_mode(),battery=get_vbatt(),batteryMin=get_config_value(2101),batteryMax=get_config_value(2100)}]])
+ local result=remote(prefix..[[local p=require'propcase'; local c=require'capmode'; return {mode=c.get(),modeName=c.get_name(),flash=get_prop(p.FLASH_MODE),zoom=get_zoom(),focus=get_focus(),aflock=get_prop(p.AF_LOCK),focusState=p.FOCUS_STATE and get_prop(p.FOCUS_STATE) or nil,focusRange=p.REAL_FOCUS_MODE and get_prop(p.REAL_FOCUS_MODE) or nil,record=get_mode(),battery=get_vbatt(),batteryMin=get_config_value(2101),batteryMax=get_config_value(2100)}]])
+ result.controls=profile.controls(result.modeName)
+ return result
 end
 local verified_build
 local connection_generation=0
@@ -93,7 +96,7 @@ function M.run(action,value,output,request_id)
   else
    if not remote('return get_mode()') then local s,e=cli:execute('rec'); assert(s,e) end
    if action=='flash' then
-    assert(value==0 or value==1 or value==2,'Недопустимая вспышка')
+    assert(profile.allows(state().controls,'flash',value),'Вспышка недоступна в этом режиме')
     remote(('set_prop(require("propcase").FLASH_MODE,%d); sleep(200)'):format(value))
     assert(state().flash==value,'Камера не приняла настройку вспышки')
    elseif action=='mode' then
@@ -101,11 +104,11 @@ function M.run(action,value,output,request_id)
     remote(([[local c=require'capmode'; local name=c.mode_to_name[%d]; assert(name and not name:match('^VIDEO') and c.valid(%d),'Режим фотосъёмки недоступен'); assert(c.set(%d)); sleep(700)]]):format(value,value,value))
     assert(state().mode==value,'Камера не переключила режим')
    elseif action=='zoom' then
-    assert(value and value>=0 and value<=6 and value%1==0,'Недопустимый зум')
+    assert(profile.allows(state().controls,'zoom',value),'Зум недоступен в этом режиме')
     remote(('set_zoom(%d); sleep(400)'):format(value))
     assert(state().zoom==value,'Камера не приняла положение зума')
    elseif action=='focusrange' then
-    assert(value==0 or value==1 or value==3,'Недопустимый диапазон фокуса')
+    assert(profile.allows(state().controls,'focusrange',value),'Диапазон фокуса недоступен в этом режиме')
     -- Use the native Canon button rather than writing a property that may only
     -- change the reported value without changing the lens/Canon focus policy.
     remote(([[local p=require'propcase'; assert(p.REAL_FOCUS_MODE,'Диапазон фокуса недоступен');
@@ -124,7 +127,20 @@ function M.run(action,value,output,request_id)
       set_aflock(locked);
       error('Камера не приняла диапазон фокуса в текущем режиме. Закройте меню камеры и попробуйте в режиме P.')]]):format(value))
     assert(state().focusRange==value,'Камера не переключила диапазон фокуса')
+   elseif action=='focusnow' then
+    assert(value==0 or value==1,'Недопустимая фиксация фокуса')
+    if value==1 then assert(profile.allows(state().controls,'focuslock',1),'Фиксация фокуса недоступна в этом режиме') end
+    remote(([[local p=require'propcase'; set_aflock(false);
+      local ok,err=pcall(function()
+        press('shoot_half'); local started=get_tick_count();
+        repeat sleep(50) until (get_shooting() and get_prop(p.FOCUS_STATE)>0) or get_tick_count()-started>5000;
+        assert(get_shooting() and get_prop(p.FOCUS_STATE)>0,'Не удалось навести резкость. Измените дистанцию или освещение и повторите.');
+        if %d==1 then set_aflock(true) end
+      end);
+      release('shoot_half');
+      if not ok then set_aflock(false); error(err) end]]):format(value))
    elseif action=='focus' then
+    assert(profile.allows(state().controls,'focus',1),'Ручная дистанция недоступна в этом режиме')
     assert(value and value>=100 and value<=10000,'Дистанция: 100–10000 мм')
     remote(('set_aflock(true); set_focus(%d); sleep(500)'):format(value))
     assert(state().aflock==1,'Камера не включила блокировку фокуса')

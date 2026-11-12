@@ -117,6 +117,8 @@ import SwiftUI
         events.insert(Date().formatted(date: .omitted, time: .standard) + "  " + text, at: 0)
         events = Array(events.prefix(30))
     }
+    func options(_ control: String) -> [Int] { state?.controls?[control] ?? [] }
+    func focusNow(lock: Bool? = nil) { perform("focusnow", value: (lock ?? (state?.aflock == 1)) ? 1 : 0) }
     var selectedMode: CaptureMode {
         availableModes.first { $0.id == mode } ?? CaptureMode(id: mode, name: state?.modeName ?? "AUTO")
     }
@@ -164,6 +166,8 @@ import SwiftUI
                 if quietly && !wasConnected { note("Камера подключена. Готова к работе.") }
                 if action == "display" {
                     note(keepBacklightOff ? "Подсветка будет оставаться выключенной; приложение повторяет команду автоматически." : "Удержание подсветки выключенной отключено; команда включения отправлена.")
+                } else if action == "focusnow" {
+                    note(state?.aflock == 1 ? "Резкость наведена и зафиксирована." : "Резкость наведена. При съёмке камера сфокусируется снова.")
                 } else if !quietly { note(action == "status" ? "Камера подключена. CHDK \(reply.build?.build_number ?? "") / \(reply.build?.platsub ?? "")." : "Настройка применена; состояние прочитано с камеры.") }
             } catch { connectionFailed(error, quietly: quietly) }
         }

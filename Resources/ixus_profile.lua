@@ -1,0 +1,23 @@
+-- Canon IXUS 65 photo controls. Unknown modes expose no speculative controls.
+local M={}
+function M.controls(name)
+ name=(name or ''):gsub('^SCN_','')
+ if name=='AUTO' then return {flash={0,2},focusrange={0,1},zoom={0,1,2,3,4,5,6}} end
+ if name=='P' or name=='LONG_SHUTTER' then
+  return {flash={0,1,2},focusrange={0,1,3},zoom={0,1,2,3,4,5,6},focuslock={0,1},focus={1}}
+ end
+ if name=='DIGITAL_MACRO' then return {focuslock={0,1},focus={1}} end
+ if name=='FIREWORK' or name=='FIREWORKS' then return {zoom={0,1,2,3,4,5,6}} end
+ local scene={PORTRAIT=true,NIGHT_SNAPSHOT=true,KIDS_PETS=true,INDOOR=true,FOLIAGE=true,SNOW=true,BEACH=true,UNDERWATER=true,COLOR_ACCENT=true,COLOR_SWAP=true,STITCH=true}
+ if scene[name] then
+  local controls={flash={0,1,2},zoom={0,1,2,3,4,5,6}}
+  if name~='KIDS_PETS' then controls.focusrange={0,1,3} end
+  return controls
+ end
+ return {}
+end
+function M.allows(controls,key,value)
+ for _,v in ipairs(controls[key] or {}) do if v==value then return true end end
+ return false
+end
+return M
