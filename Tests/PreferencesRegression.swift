@@ -57,6 +57,17 @@ actor PreferencesCamera: CameraService {
             try await waitFor { !second.busy && second.live && second.keepBacklightOff }
             await second.shutdown()
             print("PASS: changes apply immediately, survive restart and preserve preview")
+            let focusCamera = PreferencesCamera(supported: false)
+            let focusModel = CameraModel(service: focusCamera, preferences: preferences)
+            focusModel.update(CameraReply(state: CameraState(mode: 36, modeName: "PORTRAIT", flash: 0, zoom: 0, focus: 1000, aflock: 1, controls: ["focusrange": [0,1,3]], record: true, battery: 3800)))
+            focusModel.editFocus("2500")
+            focusModel.focusNow()
+            try await waitFor { !focusModel.busy }
+            focusModel.finishFocusEditing()
+            let focusActions = await focusCamera.recordedActions()
+            guard focusActions == ["focusnow:0"] else { throw CameraFailure(message: "Focus button applied an old manual draft or unsupported lock") }
+            await focusModel.shutdown()
+            print("PASS: autofocus discards an unapplied distance and avoids locking in unsupported modes")
             let unsupportedCamera = PreferencesCamera(supported: false)
             let unsupported = CameraModel(service: unsupportedCamera, preferences: preferences)
             unsupported.start()

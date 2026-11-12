@@ -145,3 +145,11 @@ end
 local calls,_,_,responses=scenario({'screen\t1\t\t1','key\t102\t\t2','QUIT'})
 assert(responses[2]:match('"ok":true') and calls:match('half%-press,key%-up,half%-release'),calls)
 original_print('PASS: native button combinations release half-press and cannot send full shutter')
+
+local profile=require'ixus_profile'
+assert(not profile.allows(profile.controls('AUTO'),'flash',1))
+assert(not profile.allows(profile.controls('SCN_COLOR_ACCENT'),'flash',0))
+assert(not profile.allows(profile.controls('SCN_COLOR_SWAP'),'flash',0))
+assert(not profile.allows(profile.controls('STITCH'),'flash',0))
+assert(not profile.allows(profile.controls('PORTRAIT'),'focuslock',1))
+original_print('PASS: Canon mode restrictions exclude unavailable flash and focus-lock choices')

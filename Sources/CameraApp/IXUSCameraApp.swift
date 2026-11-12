@@ -160,12 +160,12 @@ struct CameraView: View {
                         DisclosureGroup("Ручная дистанция") {
                             HStack {
                                 TextField("Дистанция, мм", text: Binding(get: { model.focusText }, set: { model.editFocus($0) }))
-                                    .frame(width: 100).focused($focusEditing).onSubmit { focusEditing = false }
-                                    .onChange(of: focusEditing) { editing in
-                                        if editing { model.focusEditing = true } else { model.finishFocusEditing() }
-                                    }
+                                    .frame(width: 100).focused($focusEditing)
+                                    .onSubmit { model.finishFocusEditing(); focusEditing = false }
+                                    .onChange(of: focusEditing) { model.focusEditing = $0 }
                                 Text("мм").foregroundColor(.secondary)
-                                HelpButton(title: "Ручная дистанция", explanation: "Приблизительная дистанция 100–10000 мм. Применяется по Enter или при выходе из изменённого поля и включает фиксацию фокуса. Это не измерение резкости; сначала попробуйте кнопку «Навести резкость».")
+                                Button("Установить") { model.finishFocusEditing(); focusEditing = false }
+                                HelpButton(title: "Ручная дистанция", explanation: "Приблизительная дистанция 100–10000 мм. Применяется по Enter или кнопке «Установить» и включает фиксацию фокуса. Это не измерение резкости; сначала попробуйте кнопку «Навести резкость».")
                             }.padding(.top, 6)
                         }
                     }

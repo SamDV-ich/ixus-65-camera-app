@@ -127,7 +127,13 @@ import SwiftUI
         }
     }
     func options(_ control: String) -> [Int] { state?.controls?[control] ?? [] }
-    func focusNow(lock: Bool? = nil) { perform("focusnow", value: (lock ?? (state?.aflock == 1)) ? 1 : 0) }
+    func focusNow(lock: Bool? = nil) {
+        let shouldLock = (lock ?? (state?.aflock == 1)) && options("focuslock").contains(1)
+        focusDraftChanged = false
+        focusEditing = false
+        if let state = state { focusText = String(state.focus) }
+        perform("focusnow", value: shouldLock ? 1 : 0)
+    }
     var selectedMode: CaptureMode {
         availableModes.first { $0.id == mode } ?? CaptureMode(id: mode, name: state?.modeName ?? "AUTO")
     }

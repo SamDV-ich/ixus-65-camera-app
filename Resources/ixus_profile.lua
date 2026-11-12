@@ -11,6 +11,7 @@ local function base_controls(name)
  local scene={PORTRAIT=true,NIGHT_SNAPSHOT=true,KIDS_PETS=true,INDOOR=true,FOLIAGE=true,SNOW=true,BEACH=true,UNDERWATER=true,COLOR_ACCENT=true,COLOR_SWAP=true,STITCH=true}
  if scene[name] then
   local controls={flash={0,1,2},zoom={0,1,2,3,4,5,6}}
+  if name=='COLOR_ACCENT' or name=='COLOR_SWAP' or name=='STITCH' then controls.flash={1,2} end
   if name~='KIDS_PETS' then controls.focusrange={0,1,3} end
   return controls
  end
