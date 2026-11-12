@@ -16,6 +16,13 @@ local function json(v)
  return '{'..table.concat(out,',')..'}'
 end
 local function remote(code) return con:execwait(code,{timeout=60000}) end
+local half_may_be_held=false
+local function remote_half(code)
+ half_may_be_held=true
+ local result=remote(code)
+ half_may_be_held=false
+ return result
+end
 local show_osd=false
 local hold_backlight_off=false
 local function state()
@@ -86,7 +93,7 @@ function M.run(action,value,output,request_id)
     assert(con:live_is_api_compatible(),'Экран камеры недоступен')
     if not remote('return get_mode()') then local s,e=cli:execute('rec'); assert(s,e) end
    else
-    remote([[press('shoot_half'); sleep(150); release('shoot_half')]])
+    remote_half([[press('shoot_half'); sleep(150); release('shoot_half'); sleep(300)]])
    end
    show_osd=value==1
    return {state=state()}
@@ -97,13 +104,14 @@ function M.run(action,value,output,request_id)
    local key=combo and value-100 or value
    assert(keys[key],'Недопустимая кнопка камеры')
    if combo then
-    remote(([[local ok,err=pcall(function()
-      press('shoot_half'); local started=get_tick_count();
+    remote_half(([[release('shoot_half'); sleep(150); press('shoot_half'); local started=get_tick_count();
       repeat sleep(50) until get_shooting() or get_tick_count()-started>5000;
-      assert(get_shooting(),'Камера не готова к полунажатию'); click('%s'); sleep(200)
-     end); release('shoot_half'); if not ok then error(err) end]]):format(keys[key]))
+      local ready=get_shooting();
+      if ready then click('%s'); sleep(200) end
+      release('shoot_half');
+      assert(ready,'Камера не готова к полунажатию')]]):format(keys[key]))
    else
-    remote(("click('%s'); sleep(200)"):format(keys[key]))
+    remote_half(("release('shoot_half'); sleep(200); click('%s'); sleep(350)"):format(keys[key]))
    end
    return {state=state()}
   elseif action=='frame' then
@@ -179,15 +187,13 @@ function M.run(action,value,output,request_id)
    elseif action=='focusnow' then
     assert(value==0 or value==1,'Недопустимая фиксация фокуса')
     if value==1 then assert(profile.allows(state().controls,'focuslock',1),'Фиксация фокуса недоступна в этом режиме') end
-    remote(([[local p=require'propcase'; set_aflock(false);
-      local ok,err=pcall(function()
-        press('shoot_half'); local started=get_tick_count();
-        repeat sleep(50) until (get_shooting() and get_prop(p.FOCUS_STATE)>0) or get_tick_count()-started>5000;
-        assert(get_shooting() and get_prop(p.FOCUS_STATE)>0,'Не удалось навести резкость. Измените дистанцию или освещение и повторите.');
-        if %d==1 then set_aflock(true) end
-      end);
+    remote_half(([[local p=require'propcase'; set_aflock(false); release('shoot_half'); sleep(150);
+      press('shoot_half'); local started=get_tick_count();
+      repeat sleep(50) until (get_shooting() and get_prop(p.FOCUS_STATE)>0) or get_tick_count()-started>5000;
+      local focused=get_shooting() and get_prop(p.FOCUS_STATE)>0;
+      if focused and %d==1 then set_aflock(true) end
       release('shoot_half');
-      if not ok then set_aflock(false); error(err) end]]):format(value))
+      if not focused then set_aflock(false); error('Не удалось навести резкость. Измените дистанцию или освещение и повторите.') end]]):format(value))
    elseif action=='focus' then
     assert(profile.allows(state().controls,'focus',1),'Ручная дистанция недоступна в этом режиме')
     assert(value and value>=100 and value<=10000,'Дистанция: 100–10000 мм')
@@ -199,6 +205,10 @@ function M.run(action,value,output,request_id)
   end
  end)
  if not ok then
+  if half_may_be_held and con:is_connected() then
+   pcall(function() remote("release('shoot_half')") end)
+  end
+  half_may_be_held=false
   restore_display()
   hold_backlight_off=false
   show_osd=false

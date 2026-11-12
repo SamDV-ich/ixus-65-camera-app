@@ -53,3 +53,7 @@ Mode-dependent direct controls now include ISO, stored white balance, exposure c
 A native control window adds the camera bitmap/palette overlay to the viewport and exposes bounded navigation keys plus half-press combinations. Canon menus provide the remaining shooting settings and enforce their native mode restrictions. It is a remote control surface, not a separate implementation of every menu field or of movie/burst download. Palette/bitmap decoding and menu interactions require hardware validation.
 
 Simulation covers exposure readback, unavailable-mode rejection, menu keys, half-press cleanup and RGBA frame serialization. A cross-language test decodes the actual Lua response in Swift, including numeric capability arrays, and checks overlay payload validation. The profile resource is bundled and verified.
+
+## CHDK Lua compatibility found on hardware
+
+The hardware test received the Canon bitmap/palette screen and restored its initial state with exposure counter 6201 unchanged. It also exposed a CHDK Lua 5.1 limitation: press/release/sleep cannot yield through pcall. Focus and half-press combinations now wait outside protected camera calls, release before reporting timeouts, and include a host-side release attempt for unexpected script errors. Simulated camera calls reject yielding inside pcall to prevent recurrence. Key sequences allow a settling delay after releasing half-shutter. Autofocus success still needs a sufficiently lit, detailed subject; a dark scene correctly returned a focus failure.

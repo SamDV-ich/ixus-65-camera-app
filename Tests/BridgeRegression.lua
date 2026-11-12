@@ -5,7 +5,7 @@ local bridge_path=arg[1]
 package.path='Resources/?.lua;'..package.path
 local function scenario(lines, fail_off, initially_connected, physical_wake, block_range, fail_focus)
  local connected=initially_connected~=false
- local calls={}; local connects=0; local lcd=1; local mode=1; local focus_range=0; local aflock=1; local half=false; local ticks=0; local props={}
+ local calls={}; local connects=0; local lcd=1; local mode=1; local focus_range=0; local aflock=1; local half=false; local ticks=0; local props={}; local protected_camera_call=false
  package.preload.propcase=function() return {FLASH_MODE=16,AF_LOCK=193,REAL_FOCUS_MODE=11,FOCUS_STATE=67,ISO_MODE=21,WB_MODE=5,EV_CORRECTION_1=25,EV_CORRECTION_2=26,METERING_MODE=9} end
  package.loaded.capmode=nil
  package.preload.capmode=function() return {
@@ -20,15 +20,16 @@ local function scenario(lines, fail_off, initially_connected, physical_wake, blo
  set_prop=function(id,value) props[id]=value end
  set_aflock=function(value) aflock=value and 1 or 0 end
  click=function(key)
+  assert(not protected_camera_call,'Camera Lua 5.1 cannot yield through pcall')
   assert(key~='shoot_full'); if key~='left' then calls[#calls+1]='key-'..key; return end
   calls[#calls+1]='range-button'
   if not block_range then focus_range=({[0]=1,[1]=3,[3]=0})[focus_range] end
  end
  get_tick_count=function() return ticks end
  get_shooting=function() return half end
- press=function(key) assert(key=='shoot_half'); half=true; calls[#calls+1]='half-press' end
- release=function(key) assert(key=='shoot_half'); half=false; calls[#calls+1]='half-release' end
- sleep=function(ms) ticks=ticks+ms end
+ press=function(key) assert(not protected_camera_call,'Camera Lua 5.1 cannot yield through pcall'); assert(key=='shoot_half'); half=true; calls[#calls+1]='half-press' end
+ release=function(key) assert(not protected_camera_call,'Camera Lua 5.1 cannot yield through pcall'); assert(key=='shoot_half'); half=false; calls[#calls+1]='half-release' end
+ sleep=function(ms) assert(not protected_camera_call,'Camera Lua 5.1 cannot yield through pcall'); ticks=ticks+ms end
  set_backlight=function(value)
   calls[#calls+1]='display'..value; lcd=value
   if fail_off and value==0 then error('timeout after LCD changed') end
@@ -42,7 +43,15 @@ local function scenario(lines, fail_off, initially_connected, physical_wake, blo
  end}
  con={is_connected=function() return connected end,
       disconnect=function() calls[#calls+1]='disconnect'; connected=false end,
-      execwait=function(_,code) return assert(load(code))() end,
+      execwait=function(_,code)
+       local env=setmetatable({pcall=function(fn,...)
+        protected_camera_call=true
+        local results=table.pack(pcall(fn,...))
+        protected_camera_call=false
+        return table.unpack(results,1,results.n)
+       end},{__index=_G})
+       return assert(load(code,nil,'t',env))()
+      end,
       live_is_api_compatible=function() return true end,
       live={_frame={}}, live_get_frame=function(_,flags) assert(flags==1 or flags==13) end}
  local responses={}
@@ -119,7 +128,7 @@ local _,_,_,responses=scenario({'ev\t32\t\t1','QUIT'})
 assert(responses[1]:match('"ok":false'),responses[1])
 original_print('PASS: exposure controls read back values and reject unavailable Auto-mode changes')
 local calls,_,_,responses=scenario({'screen\t1\t\t1','key\t1\t\t2','key\t2\t\t3','screen\t0\t\t4','QUIT'})
-assert(responses[4]:match('"ok":true') and calls:match('key%-set,key%-up,half%-press,half%-release'),calls)
+assert(responses[4]:match('"ok":true') and calls:match('key%-set') and calls:match('key%-up') and calls:match('half%-press,half%-release'),calls)
 local _,_,_,responses=scenario({'screen\t1\t\t1','key\t999\t\t2','QUIT'})
 assert(responses[2]:match('"ok":false'),responses[2])
 original_print('PASS: native menu accepts bounded keys and closes with a half-press, never a full press')
