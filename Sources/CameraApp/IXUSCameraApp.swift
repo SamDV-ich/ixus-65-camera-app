@@ -29,6 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         .defaultSize(width: 980, height: 700)
         .commands { CommandGroup(replacing: .newItem) {} }
+        Settings {
+            CameraSettingsView(model: model)
+        }
     }
 }
 struct CameraView: View {
@@ -86,8 +89,6 @@ struct CameraView: View {
                             }
                         }
                         Spacer()
-                        Button(model.live ? "Остановить Live View" : "Live View") { model.live ? model.stopLive() : model.startLive() }
-                            .disabled(model.busy || model.state == nil || !model.liveSupported)
                     }
                     if let photo = model.lastPhoto {
                         Button("Показать последний JPEG в Finder") { NSWorkspace.shared.activateFileViewerSelecting([photo]) }
@@ -120,14 +121,6 @@ struct CameraView: View {
                         Picker("Зум", selection: Binding(get: { model.zoom }, set: { model.select("zoom", value: $0) })) { ForEach(0..<7) { Text("\($0 + 1) / 7").tag($0) } }
 
                     }
-                    }
-                    Divider()
-                    Group {
-                    SectionHelpHeader(title: "Подсветка экрана камеры", explanation: "Переключатель задаёт поведение приложения, а не показывает фактическое состояние экрана. Команда повторяется примерно раз в секунду и после настроек. При смене режима подсветка может кратко загореться. Во время длительной операции выключение откладывается. При выходе подсветка включается обратно.")
-                    Toggle("Держать подсветку выключенной", isOn: Binding(
-                        get: { model.keepBacklightOff },
-                        set: { model.perform("display", value: $0 ? 0 : 1) }
-                    )).disabled(!model.displaySupported)
                     }
                     Divider()
                     SectionHelpHeader(title: "Фокус", explanation: "Введите дистанцию в миллиметрах и нажмите Enter или перейдите к другому полю — значение применится автоматически.\n\nДистанция приблизительная. Для проверки резкости используйте предпросмотр. Кнопка «Автофокус» снимает фиксацию фокуса.")
@@ -164,6 +157,32 @@ struct CameraView: View {
             Text("Будет принудительно остановлена системная служба импорта фотографий macOS. Текущий импорт может прерваться. Другие приложения нужно закрыть самостоятельно. Передать их открытый сеанс этому приложению невозможно.")
         }
         .alert("Камера", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("Понятно") { model.error = nil } } message: { Text(model.error ?? "") }
+    }
+}
+
+struct CameraSettingsView: View {
+    @ObservedObject var model: CameraModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Настройки камеры").font(.title2.bold())
+            HStack {
+                Toggle("Live View", isOn: Binding(
+                    get: { model.liveEnabled }, set: { model.setLiveEnabled($0) }
+                ))
+                Spacer()
+                HelpButton(title: "Live View", explanation: "Автоматически показывает изображение с камеры после подключения, если CHDK поддерживает Live View. Камера переводится в режим съёмки.\n\nНастройка применяется сразу и сохраняется для следующего запуска. При отключении остаётся последний кадр или снимок.")
+            }
+            HStack {
+                Toggle("Держать подсветку выключенной", isOn: Binding(
+                    get: { model.backlightOffEnabled }, set: { model.setBacklightOffEnabled($0) }
+                ))
+                Spacer()
+                HelpButton(title: "Подсветка экрана камеры", explanation: "Приложение выключает подсветку после подключения и повторяет команду примерно раз в секунду и после настроек. При смене режима подсветка может кратко загореться; во время длительной операции выключение откладывается.\n\nПри снятии флажка или выходе из приложения подсветка включается обратно. Настройка сохраняется для следующего запуска. Флажок показывает выбранное поведение, а не измеренный статус экрана.")
+            }
+        }
+        .disabled(model.busy)
+        .padding(24)
+        .frame(width: 420)
     }
 }
 

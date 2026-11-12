@@ -6,6 +6,9 @@ import SwiftUI
     @Published var connection = "Поиск камеры…"
     @Published var connectionKind = "searching"
     @Published var busy = false
+    @Published private(set) var liveEnabled: Bool
+    @Published private(set) var backlightOffEnabled: Bool
+    private let preferences: UserDefaults
     @Published var live = false
     @Published var liveSupported = false
     @Published var liveFrames = 0
@@ -85,7 +88,22 @@ import SwiftUI
         perform("focus", value: value)
     }
 
-    init(service: (any CameraService)? = nil) {
+    func setLiveEnabled(_ enabled: Bool) {
+        guard !busy, !ending else { return }
+        liveEnabled = enabled
+        preferences.set(enabled, forKey: "liveEnabled")
+        if enabled { startLive() } else { stopLive() }
+    }
+    func setBacklightOffEnabled(_ enabled: Bool) {
+        guard !busy, !ending else { return }
+        backlightOffEnabled = enabled
+        preferences.set(enabled, forKey: "backlightOffEnabled")
+        if state != nil && displaySupported { perform("display", value: enabled ? 0 : 1) }
+    }
+    init(service: (any CameraService)? = nil, preferences: UserDefaults = .standard) {
+        self.preferences = preferences
+        liveEnabled = preferences.object(forKey: "liveEnabled") as? Bool ?? true
+        backlightOffEnabled = preferences.object(forKey: "backlightOffEnabled") as? Bool ?? true
         self.service = service ?? CHDKCameraService(resources: Bundle.main.resourceURL!)
         let saved = UserDefaults.standard.string(forKey: "photoFolder")
         folder = saved.map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Pictures/IXUS65")
@@ -116,7 +134,7 @@ import SwiftUI
     func perform(_ action: String, value: Int? = nil, quietly: Bool = false) {
         guard !ending, !busy else { return }
         operationRevision += 1
-        let resumeLive = live
+        var resumeLive = live
         let wasConnected = state != nil
         stopLive(); busy = true
         let resumeGeneration = generation
@@ -126,6 +144,17 @@ import SwiftUI
             do {
                 let reply = try await service.execute(action, value: value, output: nil)
                 update(reply)
+                if !wasConnected && (action == "status" || action == "reclaim") {
+                    // Enter record mode before applying the backlight preference:
+                    // Canon may wake the lamp when Live View changes modes.
+                    if liveEnabled && liveSupported {
+                        update(try await service.execute("live", value: nil, output: nil))
+                        resumeLive = true
+                    }
+                    if backlightOffEnabled && displaySupported {
+                        update(try await service.execute("display", value: 0, output: nil))
+                    }
+                }
                 succeeded = true
                 if quietly && !wasConnected { note("Камера подключена. Готова к работе.") }
                 if action == "display" {
@@ -189,7 +218,7 @@ import SwiftUI
         }
     }
     private func beginLive() {
-        guard !busy, state != nil else { return }
+        guard !ending, !busy, state != nil else { return }
         stopLive(); live = true; previewLabel = "Live View • ожидание кадра"
         let current = generation
         liveTask = Task {

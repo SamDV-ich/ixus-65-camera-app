@@ -50,7 +50,12 @@ actor SimulatedCamera: CameraService {
         setbuf(stdout,nil)
         do {
             let service = SimulatedCamera()
-            let model = CameraModel(service: service)
+            let suite = "ixus-regression-" + UUID().uuidString
+            let preferences = UserDefaults(suiteName: suite)!
+            defer { preferences.removePersistentDomain(forName: suite) }
+            preferences.set(false, forKey: "liveEnabled")
+            preferences.set(false, forKey: "backlightOffEnabled")
+            let model = CameraModel(service: service, preferences: preferences)
             model.update(CameraReply(modes: ["1": "AUTO", "2": "P", "60": "SCN_SNOW", "70": "VIDEO_STD", "invalid": "AUTO"]))
             guard model.availableModes.map({ $0.id }) == [1, 2, 60], model.availableModes.last?.title == "Снег" else { throw CameraFailure(message: "Dynamic photo mode list") }
             model.mode = 60
