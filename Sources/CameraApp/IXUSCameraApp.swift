@@ -96,10 +96,9 @@ struct CameraView: View {
                 ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Group {
-                    Text("Съёмка").font(.headline)
+                    SectionHelpHeader(title: "Съёмка", explanation: "JPEG сохраняется в выбранную папку на Mac. Оригинал остаётся на SD-карте.")
                     Button(action: { model.capture() }) { Label("Снять и сохранить", systemImage: "camera.fill").frame(maxWidth: .infinity).padding(.vertical, 8) }
                         .buttonStyle(.borderedProminent).controlSize(.large).disabled(model.busy || model.state == nil)
-                    Text("JPEG сохраняется на Mac. Оригинал остаётся на SD-карте.").font(.caption).foregroundColor(.secondary)
                     if model.state?.record == false { Button("Режим съёмки") { model.perform("record") } }
                     Divider()
                     HStack {
@@ -122,17 +121,14 @@ struct CameraView: View {
                     }
                     Divider()
                     Group {
-                    Text("Подсветка экрана камеры").font(.headline)
+                    SectionHelpHeader(title: "Подсветка экрана камеры", explanation: "Переключатель задаёт поведение приложения, а не показывает фактическое состояние экрана. Команда повторяется примерно раз в секунду и после настроек. При смене режима подсветка может кратко загореться. Во время длительной операции выключение откладывается. При выходе подсветка включается обратно.")
                     Toggle("Держать подсветку выключенной", isOn: Binding(
                         get: { model.keepBacklightOff },
                         set: { model.perform("display", value: $0 ? 0 : 1) }
                     )).disabled(!model.displaySupported)
-                    Text("Это выбранное поведение, а не измеренный статус экрана. При включённом переключателе команда повторяется примерно раз в секунду и после настроек.")
-                        .font(.caption).foregroundColor(.secondary)
-                    Text("При смене режима подсветка может кратко загореться. Во время длительной команды повторное выключение откладывается. При выходе подсветка включается обратно.").font(.caption).foregroundColor(.secondary)
                     }
                     Divider()
-                    Text("Фокус").font(.headline)
+                    SectionHelpHeader(title: "Фокус", explanation: "Введите дистанцию в миллиметрах и нажмите Enter или перейдите к другому полю — значение применится автоматически.\n\nДистанция приблизительная. Для проверки резкости используйте предпросмотр. Кнопка «Автофокус» снимает фиксацию фокуса.")
                     HStack {
                         TextField("Дистанция, мм", text: Binding(get: { model.focusText }, set: { model.editFocus($0) })).frame(width: 100).focused($focusEditing).onSubmit { focusEditing = false }
                             .onChange(of: focusEditing) { editing in
@@ -145,7 +141,6 @@ struct CameraView: View {
                     if let state = model.state {
                         Text("\(state.aflock == 1 ? "Фокус зафиксирован" : "Автофокус") • камера сообщает \(state.focus) мм").font(.caption).foregroundColor(.secondary)
                     }
-                    Text("Дистанция применяется после ввода: Enter или переход к другому полю. Дистанция приблизительная. Для точного кадрирования используйте предпросмотр.").font(.caption).foregroundColor(.secondary)
                     Spacer()
                 }
                 }.frame(width: 310).disabled(model.busy || model.state == nil)
@@ -167,5 +162,49 @@ struct CameraView: View {
             Text("Будет принудительно остановлена системная служба импорта фотографий macOS. Текущий импорт может прерваться. Другие приложения нужно закрыть самостоятельно. Передать их открытый сеанс этому приложению невозможно.")
         }
         .alert("Камера", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("Понятно") { model.error = nil } } message: { Text(model.error ?? "") }
+    }
+}
+
+struct SectionHelpHeader: View {
+    let title: String
+    let explanation: String
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title).font(.headline)
+            HelpButton(title: title, explanation: explanation)
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+struct HelpButton: View {
+    let title: String
+    let explanation: String
+    @State private var showingHelp = false
+    var body: some View {
+        Button { showingHelp.toggle() } label: {
+            Image(systemName: "info.circle")
+                .font(.system(size: 16))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(.accentColor)
+        .accessibilityLabel("Пояснение: \(title)")
+        .popover(isPresented: $showingHelp) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(title).font(.headline)
+                    Spacer()
+                    Button { showingHelp = false } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain)
+                        .foregroundColor(.secondary)
+                        .accessibilityLabel("Закрыть пояснение")
+                }
+                Text(explanation).fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(16)
+            .frame(width: 320)
+        }
     }
 }
