@@ -98,15 +98,17 @@ struct CameraView: View {
                     Group {
                     SectionHelpHeader(title: "Съёмка", explanation: "JPEG сохраняется в выбранную папку на Mac. Оригинал остаётся на SD-карте.")
                     Button(action: { model.capture() }) { Label("Снять и сохранить", systemImage: "camera.fill").frame(maxWidth: .infinity).padding(.vertical, 8) }
-                        .buttonStyle(.borderedProminent).controlSize(.large).disabled(model.busy || model.state == nil)
+                        .buttonStyle(.borderedProminent).controlSize(.large).disabled(model.busy || model.state == nil || !model.selectedMode.isPhoto)
                     if model.state?.record == false { Button("Режим съёмки") { model.perform("record") } }
                     Divider()
                     HStack {
                         Picker("Режим", selection: Binding(get: { model.mode }, set: { model.select("mode", value: $0) })) {
-                            Text("Auto").tag(1); Text("P").tag(2); Text("Портрет").tag(36)
-                            if let state = model.state, ![1,2,36].contains(state.mode) { Text(state.modeName).tag(state.mode) }
+                            ForEach(model.availableModes) { item in Text(item.title).tag(item.id) }
+                            if !model.availableModes.contains(where: { $0.id == model.mode }) {
+                                Text(model.selectedMode.title).tag(model.mode)
+                            }
                         }
-
+                        HelpButton(title: "Режим: \(model.selectedMode.title)", explanation: model.selectedMode.explanation)
                     }
                     HStack {
                         Picker("Вспышка", selection: Binding(get: { model.flash }, set: { model.select("flash", value: $0) })) {

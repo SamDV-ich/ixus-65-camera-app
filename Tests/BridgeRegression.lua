@@ -8,8 +8,8 @@ local function scenario(lines, fail_off, initially_connected, physical_wake)
  package.preload.propcase=function() return {FLASH_MODE=16,AF_LOCK=193} end
  package.loaded.capmode=nil
  package.preload.capmode=function() return {
-  get=function() return mode end,get_name=function() return mode==0 and 'PLAY' or 'AUTO' end,mode_to_name={},
-  valid=function() return true end,
+  get=function() return mode end,get_name=function() return mode==0 and 'PLAY' or 'AUTO' end,mode_to_name={[1]='AUTO',[2]='P',[36]='PORTRAIT',[60]='SCN_SNOW',[70]='VIDEO_STD',[80]='UNSUPPORTED'},
+  valid=function(value) return value~=80 end,
   set=function(value) mode=value; lcd=1; calls[#calls+1]='canon-mode'; return true end
  } end
  get_buildinfo=function() return {platform='ixus65_sd630',platsub='100a',build_number='test'} end
@@ -69,3 +69,13 @@ original_print('PASS: polling without keep-off never writes backlight')
 calls=scenario({'display\t0\t\t1','mode\t2\t\t2','play\t\t\t3','record\t\t\t4','QUIT'})
 assert(calls:match('canon%-mode,display0') and calls:match('canon%-play,display0') and calls:match('canon%-rec,display0'),calls)
 original_print('PASS: mode, playback and record transitions reapply keep-off before replying')
+
+local _,_,_,responses=scenario({'status\t\t\t1','mode\t60\t\t2','QUIT'})
+assert(responses[1]:match('"60":"SCN_SNOW"') and not responses[1]:match('VIDEO_STD') and not responses[1]:match('UNSUPPORTED'),responses[1])
+assert(responses[2]:match('"ok":true') and responses[2]:match('"mode":60'),responses[2])
+original_print('PASS: camera mode list includes photo modes above 49 and they can be selected')
+for _,id in ipairs({70,80,999}) do
+ local _,_,_,responses=scenario({'mode\t'..id..'\t\t1','QUIT'})
+ assert(responses[1]:match('"ok":false'),responses[1])
+end
+original_print('PASS: video, unavailable and unknown modes are rejected before switching')

@@ -1,4 +1,4 @@
--- Host-side adapter. Camera commands are limited to the verified IXUS 65 profile.
+-- Host-side adapter for the IXUS 65 profile; modes are validated by camera CHDK.
 local M={}
 local function json(v)
  if type(v)=='boolean' or type(v)=='number' then return tostring(v) end
@@ -50,7 +50,7 @@ function M.run(action,value,output,request_id)
   value=tonumber(value or os.getenv('IXUS_VALUE'))
   output=output or os.getenv('IXUS_OUTPUT')
   if action=='status' then
-   local modes=remote([[local c=require'capmode'; local r={}; for k,v in pairs(c.mode_to_name) do if k<50 and c.valid(k) then r[tostring(k)]=v end end return r]])
+   local modes=remote([[local c=require'capmode'; local r={}; for k,v in pairs(c.mode_to_name) do if type(k)=='number' and c.valid(k) and not v:match('^VIDEO') then r[tostring(k)]=v end end return r]])
    return {state=state(),build=b,modes=modes,live=con:live_is_api_compatible(),displaySupported=remote('return type(set_backlight)=="function"')}
   elseif action=='poll' then
    return {state=state()}
@@ -86,6 +86,7 @@ function M.run(action,value,output,request_id)
   elseif action=='capture' then
    assert(output and not output:find('[\r\n"]'),'Некорректный путь')
    local rec=remote('return get_mode()'); if not rec then local s,e=cli:execute('rec'); assert(s,e) end
+   assert(not remote([[return require'capmode'.get_name()]]):match('^VIDEO'),'Выберите режим фотосъёмки вместо видео')
    local s,e=cli:execute('shoot -raw=0 -dl="'..output..'"'); assert(s,e)
    local f=assert(io.open(output,'rb'),'JPEG не скачан'); local size=f:seek('end'); f:close(); assert(size>0,'Пустой JPEG')
    return {file=output,state=state()}
@@ -96,8 +97,8 @@ function M.run(action,value,output,request_id)
     remote(('set_prop(require("propcase").FLASH_MODE,%d); sleep(200)'):format(value))
     assert(state().flash==value,'Камера не приняла настройку вспышки')
    elseif action=='mode' then
-    assert(value==1 or value==2 or value==36,'Режим не проверен')
-    remote(('local c=require"capmode"; assert(c.valid(%d)); assert(c.set(%d)); sleep(700)'):format(value,value))
+    assert(value and value>0 and value%1==0,'Недопустимый режим')
+    remote(([[local c=require'capmode'; local name=c.mode_to_name[%d]; assert(name and not name:match('^VIDEO') and c.valid(%d),'Режим фотосъёмки недоступен'); assert(c.set(%d)); sleep(700)]]):format(value,value,value))
     assert(state().mode==value,'Камера не переключила режим')
    elseif action=='zoom' then
     assert(value and value>=0 and value<=6 and value%1==0,'Недопустимый зум')

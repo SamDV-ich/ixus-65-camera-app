@@ -51,6 +51,14 @@ actor SimulatedCamera: CameraService {
         do {
             let service = SimulatedCamera()
             let model = CameraModel(service: service)
+            model.update(CameraReply(modes: ["1": "AUTO", "2": "P", "60": "SCN_SNOW", "70": "VIDEO_STD", "invalid": "AUTO"]))
+            guard model.availableModes.map({ $0.id }) == [1, 2, 60], model.availableModes.last?.title == "Снег" else { throw CameraFailure(message: "Dynamic photo mode list") }
+            model.mode = 60
+            guard model.selectedMode.explanation.contains("снежном") else { throw CameraFailure(message: "Selected mode description") }
+            model.update(CameraReply(state: CameraState(mode: 60, modeName: "SCN_SNOW", flash: 0, zoom: 0, focus: 1000, aflock: 0, record: true, battery: 3800)))
+            guard model.selectedMode.title == "Снег" else { throw CameraFailure(message: "Camera mode synchronization") }
+            model.state = nil
+            print("PASS: dynamic modes, Russian descriptions and camera-side mode selection")
             model.start(); model.start()
             try await waitFor("automatic connection") { model.state != nil && !model.busy }
             guard model.connectionKind == "connected" else { throw CameraFailure(message: "Connection indicator") }
