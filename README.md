@@ -1,25 +1,28 @@
-# IXUS Camera — проект приложения
+# IXUS Camera
 
-**Это папка для самостоятельного Git-репозитория приложения.** Текущая версия 0.4.1: нативный пульт Canon Digital IXUS 65 / PowerShot SD630 с CHDK для macOS. Сохраняет JPEG на Mac, поддерживает Live View, настройки и управление подсветкой.
+A native macOS application for Canon Digital IXUS 65 / PowerShot SD630 with CHDK. Version 0.4.1 saves JPEG files to the Mac and provides Live View, shooting controls, battery information and camera backlight management.
 
-## Что входит в Git
+## Repository layout
+
+This directory is the standalone application repository:
 
 ```text
 ixus-capture/
-  Sources/        # исходники интерфейса и сервиса камеры
-  Resources/      # Lua-адаптер, USB-патч и лицензии
-  Tests/          # автоматические и аппаратные тесты
-  scripts/        # сборка и проверка приложения
-  docs/           # документация только этого приложения
+  Sources/        # SwiftUI application and camera service
+  Resources/      # Lua adapter, USB patch and third-party licenses
+  Tests/          # simulated and hardware integration tests
+  scripts/        # build and verification scripts
+  docs/           # application documentation
+  LICENSE
   README.md
   .gitignore
 ```
 
-Весь этот каталог является проектом приложения. Готовые сборки, сторонние установки, общие исследования, снимки и архивы находятся за пределами этой папки.
+Generated applications, installed dependencies, film workflow research, photographs and archives live outside this repository.
 
-## Сборка
+## Build
 
-Из этой папки:
+Run from this directory:
 
 ```bash
 ./scripts/test.sh
@@ -27,14 +30,14 @@ ixus-capture/
 ./scripts/verify.sh
 ```
 
-Готовое приложение по умолчанию: `../builds/ixus-capture/IXUS Camera.app`. Оно включает необходимые пользователю компоненты CHDKPTP/Lua/USB. Зависимости разработчика находятся во внешней папке tools рабочей области либо задаются переменными окружения. Подробности — [сборка](docs/BUILD.md).
+Default output: `../builds/ixus-capture/IXUS Camera.app`. The application bundles CHDKPTP, Lua and USB libraries; end users do not install these separately. Developer dependencies live in the workspace's external `tools` directory or can be specified through environment variables. See [Build instructions](docs/BUILD.md).
 
-[Требования](docs/REQUIREMENTS.md) · [инструкция](docs/APP-GUIDE.md) · [проверенное и ограничения](docs/STATUS.md).
+[Requirements](docs/REQUIREMENTS.md) · [User guide](docs/APP-GUIDE.md) · [Validation and limitations](docs/STATUS.md)
 
-DNG + JPEG остаётся следующим этапом; текущая версия сохраняет JPEG.
+DNG + JPEG capture is planned; the current application captures JPEG only.
 
-## Лицензия
+## License
 
-Оригинальный код IXUS Camera распространяется по GNU GPL версии 2 или, по вашему выбору, любой более поздней версии (`GPL-2.0-or-later`). Полный текст — [LICENSE](LICENSE). Программа предоставляется без каких-либо гарантий.
+Original IXUS Camera code is licensed under the GNU General Public License, version 2 or, at your option, any later version (`GPL-2.0-or-later`). See [LICENSE](LICENSE). The software is provided without warranty.
 
-CHDKPTP и изменения в нём сохраняют GPL-2.0-or-later. Lua и библиотеки USB сохраняют собственные лицензии; сборка включает их уведомления. Файлы лицензий USB находятся в Resources, лицензии CHDKPTP и Lua берутся из исходников зависимостей при сборке.
+CHDKPTP and its modifications retain GPL-2.0-or-later. Lua and the USB libraries retain their respective licenses and notices. USB license files are in Resources; the build copies CHDKPTP and Lua notices from their dependency sources.

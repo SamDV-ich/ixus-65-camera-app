@@ -1,93 +1,75 @@
-# IXUS Camera
+# IXUS Camera user guide
 
-Нативное приложение macOS для Canon Digital IXUS 65 / PowerShot SD630, CHDK 1.6.1, Canon firmware 100A.
+A native macOS controller for Canon Digital IXUS 65 / PowerShot SD630, CHDK 1.6.1, Canon firmware 100A. Intel macOS 13 or later is targeted; hardware checks use Ventura 13.7.8.
 
-## Запуск
+## Getting started
 
-Откройте `IXUS Camera.app`. Приложение можно перенести в «Программы» или другую папку целиком. Lua, CHDKPTP и USB-библиотеки находятся внутри `.app`; отдельная установка зависимостей для работы не требуется. Поддерживается Intel macOS 13 и новее; проверка проводится на Ventura 13.7.8.
+Open IXUS Camera.app. Move the complete bundle to Applications or another folder if desired. CHDKPTP, Lua and USB libraries are bundled; no separate runtime dependency installation is required.
 
-1. Включите камеру с CHDK и подключите USB. Закройте другие программы, использующие камеру, включая открытую консоль CHDKPTP. На камере оставьте Enable Remote выключенным.
-2. Приложение само ищет камеру и подключается при открытии. Если камеры нет, повторяет поиск каждые 10 секунд. Кнопка «Подключить» позволяет повторить попытку вручную. Автоматический поиск не снимает фотографии и не включает Live View.
-3. При необходимости выберите папку. По умолчанию используется `~/Pictures/IXUS65`; папка создаётся при первой съёмке.
-4. «Снять и сохранить» делает один кадр и скачивает JPEG. Имя содержит дату и случайный суффикс. Оригинал остаётся на SD-карте. Если камера находится в просмотре, кнопка переведёт её в съёмку.
-5. «Live View» переводит камеру в режим съёмки при необходимости и включает непрерывный предпросмотр. Настройки доступны во время Live View: кадры кратко приостанавливаются для выполнения команды и затем автоматически продолжаются. То же происходит после успешной съёмки. При ошибках съёмка никогда не повторяется автоматически.
-6. Под изображением отображается цветной индикатор Live View: зелёный — изображение обновляется, оранжевый — ожидание кадра дольше 3 секунд, серый — остановлен. Счётчик и сообщения о поступлении кадров скрыты. При потере связи остаётся последний кадр с явной отметкой об остановке. Закройте другие программы работы с камерой и нажмите «Подключить», затем снова включите Live View.
+1. Start the camera with CHDK and connect USB. Close other camera clients, including an open CHDKPTP console. Leave CHDK's Enable Remote option disabled.
+2. The application searches immediately. Without a connection, it retries three seconds after each failure, including absent, occupied and unavailable states. A manual connection button also remains available. Discovery does not take photographs.
+3. Live View and keeping the backlight off are enabled by default. After checking support, connection starts Live View and then turns the backlight off. These preferences can be changed in the application menu's Settings window (Command-comma), including before connection, and persist between launches.
+4. Select a download folder if needed. The default is ~/Pictures/IXUS65, created on the first capture.
+5. The capture button takes one photograph and downloads its JPEG. Filenames contain a timestamp and a random suffix. The original stays on the SD card. Playback changes to record mode when needed.
+6. A green preview indicator means frames are updating, orange means a frame has been awaited for more than three seconds, and gray means preview is stopped. There is no frame counter. After connection loss the last image is marked as stale; connection and the chosen preview/backlight preferences recover automatically once access returns.
 
-## Настройки
+Controls currently use localized labels. This guide describes their function in English. Click a visible info button beside a section or control to open its explanation; hover is not required.
 
-- Режимы Auto, P, Portrait: проверены переключение и чтение результата.
-- Вспышка: Auto / включена / выключена. Чтение и запись подтверждены; снимок с отключённой вспышкой проверен по EXIF. Срабатывание принудительной вспышки отдельным снимком не испытывалось.
-- Зум: семь позиций, это номера ступеней, а не кратность увеличения. Практически проверен переход между первыми двумя позициями.
-- Фокус: 100–10000 мм, через AF Lock и CHDK set_focus. Проверен запрос 1000 мм с ответом камеры 1008 мм. Это не измерение оптической точности. «Автофокус» снимает блокировку; фокусировка выполняется при следующем снимке.
-- Режим, вспышка и зум применяются сразу при выборе и читаются обратно. Дистанция фокуса применяется по Enter или при переходе к другому полю. При необходимости камера автоматически переходит из просмотра в съёмку. Выбранные настройки сохраняются на камере после выхода из приложения.
-- JPEG-съёмка временно отключает CHDK RAW через штатную команду CHDKPTP, которая восстанавливает исходное значение после успешной съёмки.
+## Shooting controls
 
-## Подключение и батарея
+- **Mode:** the list contains photo modes reported as available by CHDK on the connected camera. Selection applies immediately and is read back. Its info button describes the selected mode. Camera-side changes update the selection. Video recording is not supported. Some color effects need further configuration on the camera.
+- **Flash:** automatic, on or off. Read/write behavior was checked; a flash-off photograph was verified using EXIF. Actual forced flash firing was not separately tested.
+- **Zoom:** seven numbered positions, not magnification factors. Hardware checks included movement between the first positions and later between positions 0 and 4 internally.
+- **Focus distance:** 100–10000 mm using AF Lock and CHDK set_focus. A 1000 mm request returned 1008 mm on the camera; this does not establish optical accuracy. Press Enter or leave the edited field to apply. The autofocus action releases AF Lock; focusing occurs on the next photograph.
 
-В заголовке виден статус: поиск, камера не найдена, камера под управлением приложения, USB-интерфейс занят или камера недоступна по неизвестной причине. Отказ открыть сеанс сам по себе не доказывает, что камера занята. Владелец подключения обычно неизвестен; наличие процесса `ptpcamerad` также не доказывает, что именно он занял камеру.
+Commands enter record mode when needed. Camera settings remain on the camera after application exit. JPEG capture temporarily disables CHDK RAW through the standard CHDKPTP command, which restores its original value after a successful capture. Failed downloads may still leave a new photograph on the SD card: inspect it before repeating capture. The application does not delete camera photographs and never automatically repeats capture.
 
-Собственное постоянное соединение используется повторно для всех операций. Подключение другой программы нельзя перенять. При занятом или недоступном сеансе кнопка «Освободить подключение…» предлагает принудительно остановить только системную службу импорта фотографий `ptpcamerad`, предупреждая о прерывании импорта. Действие выполняется лишь после подтверждения; другие приложения нужно закрыть самостоятельно. Успешное освобождение не гарантировано: служба может запуститься снова или камеру может держать другая программа. В этом случае переподключите USB, а при необходимости перезапустите камеру с CHDK.
+## Connection and battery
 
-Версия 0.3.0 использует отдельную исправленную сборку CHDKPTP: проверяет результат захвата USB-интерфейса, не меняет USB-конфигурацию, не сбрасывает устройство при открытии/закрытии и не повторяет неудачное открытие. Патч `Resources/chdkptp-safe-usb.patch` применяется при сборке к временной копии исходников. Исходная установка CHDKPTP не меняется. Сеанс и Live View с исправленной USB-сборкой проверены на настоящей камере. При блокировке системной службой получен отказ Permission denied (не ошибочно обозначенный как доказанная занятость). Обычный сигнал завершения служба игнорировала; SIGKILL освободил доступ. Проверка конкуренции двух независимых клиентов CHDKPTP отдельно не проводилась.
+The header distinguishes searching, absent, connected, an occupied USB interface and unavailable access with an unknown cause. Session failure alone does not prove another client owns the camera. The owner generally cannot be identified; a running ptpcamerad process is not proof of ownership.
 
-Батарея: напряжение считывается с камеры, примерный процент рассчитывается по порогам CHDK `get_config_value(2101)` и `get_config_value(2100)`. Если пороги недоступны/некорректны, показывается только напряжение. При нормальном соединении показания обновляются вместе с настройками примерно раз в секунду и после команд. Во время длительной команды фоновое чтение пропускается. Это приблизительная оценка по напряжению, не измерение оставшегося времени работы. Источник идентификаторов: [CHDK core/conf.c](https://raw.githubusercontent.com/petabyt/chdk/master/trunk/core/conf.c).
+All operations reuse the application's persistent connection. Another application's session cannot be adopted. For occupied or unavailable access, the release-connection action offers to force-stop only macOS's ptpcamerad import service, with confirmation because imports may be interrupted. Close other clients yourself. Success is not guaranteed: the service may restart or another program may hold the camera. Reconnect USB or restart the camera with CHDK if necessary. Automatic discovery never force-stops services.
 
-Если скачивание завершилось ошибкой, снимок мог остаться на SD-карте. Проверьте её перед повторной съёмкой. Приложение не удаляет фотографии с камеры.
+The bundled CHDKPTP build checks USB interface claiming, avoids changing the USB configuration and avoids device resets on open/close or retrying a failed session open. Resources/chdkptp-safe-usb.patch is applied only to a temporary source copy; the original installation is unchanged. The patched connection and Live View were validated on hardware. Permission denied was kept distinct from confirmed interface occupancy. The import service ignored ordinary termination during testing; SIGKILL released access. Two competing independent CHDKPTP clients were not separately tested.
 
-## Синхронизация с камерой (0.4.0)
+Battery voltage comes from the camera. Percentage is estimated from CHDK configuration thresholds 2101 and 2100; invalid or missing thresholds leave voltage only. Readings normally update approximately once per second and after commands. Long operations postpone background reads. This is a voltage estimate, not remaining runtime. Threshold identifiers originate in CHDK core/conf.c.
 
-После подключения приложение примерно раз в секунду читает режим, вспышку, зум, расстояние фокусировки, AF Lock и батарею через то же постоянное соединение. Изменения на камере отражаются в интерфейсе без кнопки «Обновить», в том числе при Live View. Опрос не меняет настройки съёмки и не останавливает получение кадров; если включено удержание подсветки выключенной, в том же запросе повторяется её выключение; USB-запросы по-прежнему выполняются по очереди. Интервал — приблизительный, с учётом времени ответа камеры; во время съёмки/настройки чтение откладывается. Поиск отсутствующей камеры остаётся раз в 10 секунд.
+## State synchronization
 
-Ответ опроса, начавшегося до новой команды пользователя, отбрасывается, чтобы старое состояние не перезаписало результат команды. Дистанция фокуса обновляется только если поле не редактируется и нет несохранённого ввода. Простое открытие и закрытие поля без изменения текста не фиксирует фокус. Если камера сообщает бесконечность/служебное значение расстояния, приложение показывает её число, а не обещает оптическую точность.
+The application polls mode, flash, zoom, focus distance, AF Lock and battery through the same connection approximately once per second. Changes on the camera appear without a manual refresh, including while preview is running. Polling does not stop preview; if keeping the backlight off is enabled, the same request reapplies that command. USB operations remain sequential, so capture and settings can delay polling.
 
-## Подсветка экрана камеры (0.4.0)
+A poll started before a newer user command cannot overwrite that command's result. Focus distance updates only when the field is not being edited and has no unapplied draft. Entering and leaving an unchanged field does not lock focus. Camera-reported infinity or sentinel distances are displayed as reported rather than treated as optical measurements.
 
-В версии 0.4.1 используется переключатель «Держать подсветку выключенной». Он задаёт политику, а не отображает измеренное состояние лампы. При включении отправляется CHDK `set_backlight(0)`; затем команда повторяется примерно раз в секунду в запросе состояния и после настроек/съёмки. При отключении отправляется `set_backlight(1)`, автоматическое выключение прекращается. После ошибки/нового подключения переключатель сбрасывается.
+## Backlight policy
 
-Камера может кратко включить подсветку при смене режима или нажатии кнопок. Повторное выключение выполняется с задержкой опроса; во время длительной команды откладывается. Дисплей и изображение продолжают работать без подсветки. Экономия батареи отдельно не измерялась.
+The Settings checkbox represents desired behavior, not measured lamp state. Enabling it sends set_backlight(0), then reapplies the command during polling and after settings/capture. Disabling it sends set_backlight(1) and stops enforcement. The preference persists through disconnection and is reapplied after reconnection.
 
-Полное выключение через `set_lcd_display` испытывалось, но исключено из приложения: на этой IXUS 65 после возврата в просмотр пользователь видел только чёрный экран с подсветкой. Переход в съёмку восстановил изображение. Поэтому готовая версия управляет только подсветкой и не пытается автоматически менять режимы для восстановления дисплея.
+Canon may briefly wake the lamp after a mode change or button press. Reapplication waits for polling and can be delayed during long commands. The LCD image continues to operate without illumination; battery savings have not been measured.
 
-Физическое состояние подсветки надёжно не считывается. Интерфейс показывает выбранное поведение, не обещая измеренного статуса. При выключенном переключателе камера управляет подсветкой сама; при включённом приложение повторяет выключение.
+Full display shutdown using set_lcd_display was tested and excluded: after returning to playback, the observer saw a black, backlit screen. Entering record restored the image. The application therefore controls the backlight only.
 
-Если приложение выключало подсветку, перед штатным закрытием обработчика оно отправляет включение. То же восстановление предпринимается при ошибке команды, пока соединение доступно. При обрыве USB, отключении питания или принудительном завершении обработчика восстановление не гарантируется. Имитатор проверяет отправку включения до отключения при QUIT, EOF и ошибке, включая сбой после выполнения команды выключения.
+If the helper turned the backlight off, it attempts to turn it on before normal disconnection, on EOF and after command errors while the connection remains available. Recovery is not guaranteed after USB disconnection, power loss or forced helper termination. Simulation covers restoration before disconnect, including a failure after the off command took effect.
 
-## Архитектура
+## Architecture
 
-- `Sources/CameraCore`: независимый от SwiftUI протокол CameraService, структуры ответов и актор CHDKCameraService. Команды выполняются последовательно, без shell; процесс ограничен по времени.
-- `Resources/ixus_bridge.lua`: адаптер CHDKPTP. Проверяет модель/прошивку и возвращает структурированный JSON. Допускает только перечисленные действия и диапазоны параметров.
-- `Sources/CameraApp`: SwiftUI-интерфейс, состояние, выбор папки, предпросмотр и декодирование кадров.
+- Sources/CameraCore contains CameraService, response types, photo mode descriptions and the CHDKCameraService actor. Requests execute sequentially without a shell and have time limits.
+- Resources/ixus_bridge.lua validates camera model/firmware, accepts a bounded set of actions and parameter values, and returns structured JSON.
+- Sources/CameraApp contains SwiftUI views, preferences, state, folder selection and preview decoding.
 
-Начиная с версии 0.2.0 приложение держит один процесс CHDKPTP и одно USB-соединение. Swift передаёт запросы по каналам stdin/stdout с номерами ответов; пути кодируются как UTF-8 hex. Актор выполняет кадры, настройки и съёмку строго по очереди. В обычном цикле Live View соединение не переоткрывается. При выходе приложение завершает обработчик и освобождает камеру. Не открывайте одновременно другую программу, использующую эту камеру.
+One CHDKPTP process owns one USB connection. Swift uses numbered requests over stdin/stdout; paths are UTF-8 hex. Frames, settings and captures run sequentially. Preview does not reopen the session for each frame. Disabling preview preserves the connection for other operations. Commands temporarily pause an active preview and resume it only after success; an explicit stop prevents resumption. Background connection recovery never repeats a capture. Shutdown stops monitoring and releases the helper.
 
-Кнопка «Остановить Live View» прекращает получение кадров, сохраняя соединение для настроек и съёмки. Изменение настройки автоматически возобновляет ранее включённый Live View только после успешного выполнения; явная остановка отменяет возобновление. При разрыве соединения пользователь запускает повторное подключение сам; команда съёмки не повторяется.
+Porting to another OS requires a platform-specific process launcher and interface; the operations, protocol and Lua adapter can be retained.
 
-Для переноса на другую ОС нужно реализовать запуск процесса и интерфейс на целевой платформе; набор операций, формат ответов и Lua-адаптер можно сохранить.
+## Build and third-party components
 
-## Сборка и проверка
+See [BUILD.md](BUILD.md) for build, packaging and simulated tests. Hardware tests require a separately prepared camera and an agreed physical check with the application closed. See [STATUS.md](STATUS.md) for evidence and limitations.
 
-Смотрите [BUILD.md](BUILD.md): проверенные команды сборки, упаковки и автоматических проверок. Аппаратные тесты описаны отдельно и запускаются только после согласования, приложение должно быть закрыто. Результаты прежних проверок находятся в [STATUS.md](STATUS.md).
+CHDKPTP uses GPL-2.0-or-later, Lua uses MIT, and libusb/libusb-compat retain their bundled licenses. Notices are in Contents/Resources/Licenses and CHDKPTP/Lua sources in Contents/Resources/Sources. Public binary distribution also requires the corresponding sources for the bundled USB library versions and compliance with their license terms.
 
-## Сторонние компоненты
+The original legacy application and original CHDKPTP installation have not been changed.
 
-CHDKPTP распространяется под GPL v2, Lua — под MIT, libusb и libusb-compat — согласно вложенным лицензиям. Копии лицензий находятся внутри `.app/Contents/Resources/Licenses`, локальные исходники CHDKPTP и Lua — в `Resources/Sources`. Для публичного распространения подготовьте также соответствующие исходники упакованных версий USB-библиотек и соблюдайте условия вложенных лицензий.
+## Project location
 
-Исходное приложение `/Users/dmitrysamoilovich/chdk-work/archive/legacy/canon ixus 65.app` и исходная установка CHDKPTP не изменены.
+Application repository: /Users/dmitrysamoilovich/chdk-work/ixus-capture. Generated bundle: ../builds/ixus-capture/IXUS Camera.app, outside Git. Workspace-level docs cover film/darktable workflows, tools contains third-party installations, artifacts contains photographs/logs and archive contains old builds and the legacy application.
 
-## Расположение проекта
-
-Репозиторий приложения: `/Users/dmitrysamoilovich/chdk-work/ixus-capture`. Готовая сборка: `../builds/ixus-capture/IXUS Camera.app`, вне репозитория. Общие материалы по плёнке и darktable находятся в `docs` рабочей области; сторонние инструменты — в `tools`, снимки и журналы — в `artifacts`, прежние версии и старое приложение — в `archive`.
-
-Текущая версия 0.4.1 сохраняет JPEG. Требования именно к приложению — [REQUIREMENTS.md](REQUIREMENTS.md).
-
-### Выбор режима и справка
-
-После подключения список «Режим» содержит режимы фотосъёмки, которые CHDK сообщает как доступные для этой камеры. Выбор применяется сразу; кнопка ⓘ рядом открывает описание выбранного режима. Изменение режима на камере синхронизируется с приложением. Видеозапись пока не поддерживается. Для цветовых эффектов дополнительные параметры выбираются на самой камере.
-
-### Настройки приложения
-
-Live View и удержание подсветки выключенной перенесены в стандартное окно настроек: меню IXUS Camera → Настройки… (на англоязычной macOS — Settings…), сочетание ⌘,. Оба параметра включены при первом запуске; изменения применяются сразу и сохраняются между запусками. Настройки можно выбрать до подключения камеры. После подключения приложение проверяет поддержку, запускает Live View, затем выключает подсветку; при выходе подсветка восстанавливается. На главном экране остаётся индикатор состояния предпросмотра. Пояснения в настройках открываются по кнопкам ⓘ.
-
-### Автоматический поиск и восстановление связи
-
-Пока приложение открыто, при отсутствии соединения оно повторяет попытку подключения каждые 3 секунды после ошибки: камера отсутствует, занята или недоступна. После освобождения камеры или переподключения USB связь восстанавливается автоматически вместе с выбранными настройками Live View и подсветки. Фоновые ошибки не открывают модальные окна; статус остаётся виден в основном окне. Автопоиск не завершает другие программы или службы и не повторяет съёмку. При выходе поиск прекращается.
+Version 0.4.1 saves JPEG; DNG + JPEG is not implemented. See [REQUIREMENTS.md](REQUIREMENTS.md) for application scope.

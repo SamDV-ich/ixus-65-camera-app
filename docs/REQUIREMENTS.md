@@ -1,20 +1,22 @@
-# Требования к приложению IXUS Camera
+# IXUS Camera requirements
 
-Нативное приложение macOS для управления Canon Digital IXUS 65 / PowerShot SD630 (100A, CHDK 1.6.1 rev6355). Текущая проверенная среда — Intel macOS Ventura 13.7.8. Приложение используется в том числе для пересъёмки плёнки; общие материалы по стенду и обработке ведутся вне этого репозитория.
+A native macOS application for Canon Digital IXUS 65 / PowerShot SD630, firmware 100A, CHDK 1.6.1 rev6355. The validated environment is Intel macOS Ventura 13.7.8. Film digitization is one use case; stand design and image processing materials live outside this repository.
 
-## Функции
+## Features
 
-- Автоматическое подключение и понятное состояние доступа к камере.
-- Съёмка одной кнопкой, сохранение JPEG в выбранную папку Mac; оригинал на SD сохраняется.
-- Live View при поддержке камерой; одно постоянное USB-соединение для кадров и команд.
-- Режимы фотосъёмки из списка CHDK подключённой камеры, русские названия и описания выбранного режима по кнопке ⓘ. Настройки вспышки, зума, AF Lock и дистанции в проверенных пределах.
-- Опрос состояния примерно раз в секунду, защита редактируемого поля фокуса от перезаписи.
-- Напряжение батареи и приблизительный процент по порогам CHDK.
-- Удержание подсветки выключенной с повторением команды; включение при штатном выходе.
-- Один готовый .app со встроенными CHDKPTP/Lua/USB-библиотеками, без их отдельной установки пользователем.
+- Automatically find and connect to the camera, with clear access status and recovery after disconnection.
+- Capture one image and download its JPEG to a selected Mac folder, retaining the original on the SD card.
+- Use one persistent USB connection for commands and Live View when supported.
+- Obtain photo modes from the connected camera's CHDK capabilities, with localized names and descriptions opened using an info button.
+- Apply flash, zoom, AF Lock and focus distance controls within the implemented limits.
+- Poll state approximately once per second without overwriting an active focus edit.
+- Display battery voltage and an approximate percentage derived from CHDK thresholds.
+- Keep the camera backlight off by periodically reapplying the command; restore it during normal shutdown.
+- Enable Live View and the backlight-off preference by default, with persistent controls in the standard Settings window.
+- Deliver one application bundle containing CHDKPTP, Lua and USB libraries.
 
-SwiftUI-интерфейс отделён от CameraService и Lua-адаптера. Запросы к камере выполняются последовательно. При ошибке спуск не повторяется автоматически. Чужие USB-сеансы не перенимаются; остановка системной службы импорта возможна только по явному действию с подтверждением.
+The SwiftUI interface is separate from CameraService and the Lua adapter. Camera operations execute sequentially. Capture is never automatically retried after failure. Another application's USB session cannot be adopted; stopping the system import service requires an explicit action and confirmation.
 
-DNG + JPEG — следующий этап приложения: запись, скачивание пары и совместимость конкретного DNG с редактором ещё не реализованы и не подтверждены. Автоматическая обработка и позитивный предпросмотр не входят в текущую версию.
+DNG + JPEG recording, paired downloads and validation of the resulting DNG in an editor remain future work. Automatic image processing and a positive preview of negatives are outside the current version.
 
-[Проверки и ограничения](STATUS.md), [сборка](BUILD.md), [работа с приложением](APP-GUIDE.md).
+[Validation and limitations](STATUS.md) · [Build](BUILD.md) · [User guide](APP-GUIDE.md)

@@ -1,33 +1,37 @@
-# Состояние приложения 0.4.1
+# Application status: 0.4.1
 
-Проверено на Canon IXUS 65, CHDK 1.6.1 rev6355 / 100A, Intel macOS Ventura 13.7.8.
+Hardware checks used Canon IXUS 65, CHDK 1.6.1 rev6355 / 100A and Intel macOS Ventura 13.7.8.
 
-- JPEG снимается, сохраняется на Mac и открывается; оригинал остаётся на SD.
-- Live View декодируется; кадры и команды используют одно USB-соединение. Это не замер частоты уникальных кадров.
-- Auto/P/Portrait, вспышка и зум проверены по чтению результата. Для выключенной вспышки есть проверка снимка по EXIF; принудительное срабатывание не испытывалось.
-- AF Lock и запрос дистанции проверены по ответу камеры, не по оптической точности или резкости плёнки.
-- Синхронизация состояния проверена на изменении зума вне модели; имитаторы покрывают ввод фокуса, ошибки и устаревшие ответы.
-- Удержание подсветки проверено при Auto/P и просмотр/съёмка. Внешнее включение лампы воспроизведено прямой командой камеры, следующий опрос её выключил; пользователь подтвердил потемнение и восстановление изображения после теста.
-- Полное отключение LCD исключено из-за чёрного изображения при возврате в просмотр. Используется только подсветка. Её физическое состояние не считывается: интерфейс показывает выбранную политику.
-- Батарея считывается; процент приблизительный. Служба ptpcamerad может мешать доступу, наличие процесса само по себе не доказывает занятость.
-- Сборка и подпись ad-hoc проверены, зависимости вложены в .app. На чистом другом Mac не испытывалось; Developer ID/notarization не настроены.
+## Hardware validation
 
-DNG + JPEG пока не реализован. Точная оптика стенда, экспозиционные/ISO/ND overrides, длительная работа на полной плёнке и экономия батареи отдельно не проверены. Визуальная автоматизация интерфейса недоступна; физические результаты подсветки подтверждены пользователем.
+- JPEG capture, download and image loading succeeded; the original remains on the SD card.
+- Live View decoding and commands share one USB connection. This is not a measurement of the unique-frame rate.
+- Auto, P and Portrait transitions, flash settings and zoom were checked by reading state back. A flash-off photograph was also checked using EXIF; forced flash firing was not tested separately.
+- AF Lock and a focus-distance request were checked against camera responses, not optical accuracy or film sharpness.
+- Camera-side zoom changes were reflected in the application. Simulated tests cover focus drafts, errors and stale responses.
+- The backlight-off policy was checked across Auto/P and playback/record transitions. A direct camera command simulated firmware waking the lamp; the next poll turned it off again. The observer confirmed darkness and a restored image afterward.
+- Full LCD shutdown was excluded because returning to playback could leave a black, backlit screen. Only backlight control is used. Its physical state is not measured; the interface represents the requested policy.
+- Battery voltage is read from the camera; its percentage is approximate. The presence of ptpcamerad alone does not prove that it owns the interface.
+- Bundle contents and ad-hoc signatures were verified. A clean second Mac has not been tested; Developer ID signing and notarization are not configured.
 
-[Требования](REQUIREMENTS.md), [проверки и сборка](BUILD.md). Общие журналы, снимки и история испытаний находятся вне репозитория приложения.
+DNG + JPEG, stand optics, exposure/ISO/ND overrides, full-roll endurance and battery savings have not been separately validated. Automated visual inspection was unavailable; physical backlight outcomes were confirmed by the user.
 
-## Доступные режимы
+## Dynamic photo modes
 
-Список фоторежимов теперь получается из capmode подключённой камеры без прежнего ограничения на три пункта и номера ниже 50. Перед переключением проверяются название и capmode.valid; после — фактический режим. Видео исключено, JPEG-команда также отклоняет видеорежим. Русские названия и пояснения открываются кнопкой ⓘ рядом с выбором режима. Смена режима на самой камере обновляет выбранное описание при опросе.
+The mode list comes from the connected camera's capmode table, without the former three-mode restriction or ID cutoff at 50. Selection checks the name and capmode.valid before switching, then reads the resulting mode back. Video is excluded and the JPEG command rejects video modes too. Localized names and the selected mode's explanation are available through the info button. Polling updates the selection when the camera mode changes.
 
-Расширенный список и проверки отказов покрыты имитаторами. Физическое переключение дополнительных режимов в этом обновлении не проверялось; прежняя аппаратная проверка распространяется только на Auto/P/Portrait.
+Simulated tests cover additional modes and rejection paths. Physical switching of the additional modes has not been validated; the earlier hardware checks cover Auto/P/Portrait only.
 
-Описания составлены по руководствам Canon: [базовое](https://gdlp01.c-wss.com/gds/0/0900001440/02/PSSD630IXUS65CUGba-EN.pdf), [расширенное](https://files.canon-europe.com/files/soft26285/Manual/IXUS-65_ADVCUG_EN.pdf). Некоторые эффекты требуют выбора цвета или других параметров на самой камере.
+Descriptions use Canon's [basic guide](https://gdlp01.c-wss.com/gds/0/0900001440/02/PSSD630IXUS65CUGba-EN.pdf) and [advanced guide](https://files.canon-europe.com/files/soft26285/Manual/IXUS-65_ADVCUG_EN.pdf). Some effects require color selection or other parameters on the camera itself.
 
-## Настройки предпросмотра и подсветки
+## Preview and backlight preferences
 
-Live View и политика выключения подсветки по умолчанию включены и доступны в Settings (⌘,). Выбор сохраняется отдельно от текущего состояния соединения и применяется после подключения с проверкой поддержки: сначала включение Live View, затем выключение подсветки. Имитационные проверки покрывают первый запуск, применение изменений, сохранение выбора и отсутствие команд для неподдерживаемых возможностей. Новая последовательность автоматического подключения на физической камере отдельно не проверялась.
+Live View and keeping the backlight off are enabled by default and controlled in Settings (Command-comma). Preferences persist independently of connection state. After connecting and checking support, the application starts Live View, then turns the backlight off. Simulated tests cover defaults, immediate application, persistence and unsupported capabilities. The new automatic startup sequence has not been tested separately on hardware.
 
-## Непрерывный поиск
+## Continuous discovery
 
-Исправлен повторный поиск после статусов unavailable/occupied и обрыва Live View: любая потеря соединения планирует фоновую попытку через 3 секунды. Поиск не ограничен статусом absent, не вызывает reclaim и останавливается при shutdown. Имитационный тест проходит через absent → unavailable → occupied → подключение → обрыв → восстановление с Live View/подсветкой; аппаратный USB-тест этого изменения отдельно не выполнялся.
+Every connection failure schedules another background attempt after three seconds, including unavailable and occupied states and a broken preview connection. Discovery never invokes reclaim and stops on shutdown. Simulation covers absent, unavailable and occupied states, connection, disconnection and recovery with preview/backlight preferences. This change has not had a separate physical USB reconnection test.
+
+[Requirements](REQUIREMENTS.md) · [Build and tests](BUILD.md)
+
+Historical reports, photographs and test logs are outside this application repository.
