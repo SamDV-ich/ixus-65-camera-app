@@ -39,6 +39,8 @@ import SwiftUI
     private var generation = 0
     private var monitor: Task<Void, Never>?
     private var started = false
+    private let reconnectInterval: TimeInterval
+    private var nextSearchAt = Date.distantPast
     private var operationRevision = 0
     private var ending = false
     // Poll without toggling busy or restarting Live View. Discard responses
@@ -62,19 +64,19 @@ import SwiftUI
         guard !started else { return }; started = true
         perform("status", quietly: true)
         monitor = Task {
-            var lastSearch = Date()
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard !Task.isCancelled, !ending else { return }
                 if state != nil { await pollState() }
-                else if !busy && connectionKind == "absent" && Date().timeIntervalSince(lastSearch) >= 10 {
-                    lastSearch = Date(); perform("status", quietly: true)
+                else if !busy && Date() >= nextSearchAt {
+                    perform("status", quietly: true)
                 }
             }
         }
     }
     func connectionFailed(_ error: Error, quietly: Bool = false) {
         let text = error.localizedDescription
+        nextSearchAt = Date().addingTimeInterval(reconnectInterval)
         state = nil; availableModes = []; liveSupported = false; displaySupported = false; keepBacklightOff = false
         connectionKind = text.contains("IXUS_BUSY:") ? "occupied" : (text.contains("IXUS_ABSENT:") ? "absent" : "unavailable")
         connection = connectionKind == "occupied" ? "Камера занята" : (connectionKind == "absent" ? "Камера не найдена" : "Камера недоступна")
@@ -100,8 +102,9 @@ import SwiftUI
         preferences.set(enabled, forKey: "backlightOffEnabled")
         if state != nil && displaySupported { perform("display", value: enabled ? 0 : 1) }
     }
-    init(service: (any CameraService)? = nil, preferences: UserDefaults = .standard) {
+    init(service: (any CameraService)? = nil, preferences: UserDefaults = .standard, reconnectInterval: TimeInterval = 3) {
         self.preferences = preferences
+        self.reconnectInterval = max(0, reconnectInterval)
         liveEnabled = preferences.object(forKey: "liveEnabled") as? Bool ?? true
         backlightOffEnabled = preferences.object(forKey: "backlightOffEnabled") as? Bool ?? true
         self.service = service ?? CHDKCameraService(resources: Bundle.main.resourceURL!)
@@ -145,6 +148,7 @@ import SwiftUI
                 let reply = try await service.execute(action, value: value, output: nil)
                 update(reply)
                 if !wasConnected && (action == "status" || action == "reclaim") {
+                    error = nil
                     // Enter record mode before applying the backlight preference:
                     // Canon may wake the lamp when Live View changes modes.
                     if liveEnabled && liveSupported {
@@ -236,7 +240,7 @@ import SwiftUI
                 catch {
                     guard current == generation else { return }
                     live = false; previewLabel = "Связь прервана • последний кадр"
-                    connectionFailed(error)
+                    connectionFailed(error, quietly: true)
                     note("Live View остановлен. Показан последний кадр. " + error.localizedDescription)
                     return
                 }

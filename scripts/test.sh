@@ -6,6 +6,8 @@ TEST_DIR=$(mktemp -d /private/tmp/ixus-tests.XXXXXX)
 trap 'rm -rf "$TEST_DIR"' EXIT
 swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Sources/CameraApp/CameraModel.swift Tests/LiveViewRegression.swift -o "$TEST_DIR/regression"
 swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Sources/CameraApp/CameraModel.swift Tests/PreferencesRegression.swift -o "$TEST_DIR/preferences"
+swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Sources/CameraApp/CameraModel.swift Tests/ReconnectRegression.swift -o "$TEST_DIR/reconnect"
+"$TEST_DIR/reconnect"
 "$TEST_DIR/preferences"
 "$TEST_DIR/regression"
 swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Tests/ConnectionRegression.swift -o "$TEST_DIR/connection"

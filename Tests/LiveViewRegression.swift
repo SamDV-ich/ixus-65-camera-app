@@ -110,7 +110,8 @@ actor SimulatedCamera: CameraService {
             print("PASS: explicit stop during a setting prevents automatic restart")
             model.startLive(); try await waitFor("restart") { model.liveFrames >= 2 }
             await service.failNextFrame()
-            try await waitFor("error stop") { !model.live && model.error != nil }
+            try await waitFor("error stop") { !model.live && model.state == nil }
+            guard model.error == nil else { throw CameraFailure(message: "Background frame error shows an alert") }
             guard model.previewLabel.contains("Связь прервана") else { throw CameraFailure(message: "Stale image not labelled") }
             print("PASS: loss of connection stops preview and labels the stale frame")
             model.connectionFailed(CameraFailure(message: "IXUS_BUSY: busy"), quietly: true)
