@@ -98,3 +98,13 @@ An explicit autofocus action discards an unapplied manual-distance draft, so cli
 For a close target, choose Macro, press Focus now, then enable focus lock. If Canon already confirmed focus, locking retains the current distance instead of running autofocus again. Without a confirmed focus, enabling the lock first attempts autofocus. Normal focus refusal shows a local warning and leaves the USB session and preview available for another attempt. Manual distance remains an explicit advanced operation.
 
 On this camera, normal/macro/infinity use the dedicated Canon Macro logical event, not an emulated left-arrow press. FUNC navigation runs inside one continuous camera script because restarting scripts for each key/state query can close the Canon function menu. Main MENU uses the working native menu button path. Final MENU-to-FUNC exit handling uses bounded MENU presses and bitmap-alpha readback; it has simulator coverage but was not rerun on hardware after the battery depleted and further hardware testing was declined. See [hardware validation](HARDWARE-CONTROLS.md).
+
+## Preview preferences
+
+Open Settings (Command-comma) and use the Preview section. Changes apply immediately and persist between launches. They affect the Mac preview only, never downloaded JPEG quality.
+
+- Quality: Faster uses the existing horizontal sample skipping. More detail (experimental) decodes all horizontal samples. Its optical benefit on IXUS 65 has not yet been checked on hardware; it may increase host processing cost. Both retain the camera display's 4:3 proportions.
+- Refresh rate: Maximum, or an upper limit of 5, 10 or 15 frames per second. The default is 10. The frame interval includes transfer and decoding time, replacing the previous unconditional 150 ms pause. Slow transfers do not receive an extra frame interval. Maximum has no intentional frame delay. Actual performance still depends on camera, USB and other commands.
+- Display: Fit to window, or Original size. Original size avoids enlarging the preview and accounts for the camera's pixel aspect ratio; this is a logical display size in macOS points. It also applies to a stopped preview, but not to a downloaded JPEG. Larger images can be scrolled.
+
+The native Canon menu window keeps its fitted preview and continues receiving frames even if the main Live View preference is disabled while the menu is open. Quality and refresh rate apply to both windows. The new preferences and frame routing were checked with simulations and a build only; no new camera connection or performance benchmark was performed.

@@ -71,7 +71,7 @@ struct CameraView: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.92))
                         if let image = model.preview {
-                            Image(nsImage: image).resizable().aspectRatio(contentMode: .fit).padding(8)
+                            PreviewImage(image: image, nativeSize: model.previewIsLive && model.previewNativeSize).padding(8)
                         } else {
                             VStack(spacing: 12) {
                                 Image(systemName: "camera.viewfinder").font(.system(size: 46))
@@ -279,6 +279,21 @@ struct CameraSettingsView: View {
                 Spacer()
                 HelpButton(title: "Live View", explanation: "Автоматически показывает изображение с камеры после подключения, если CHDK поддерживает Live View. Камера переводится в режим съёмки.\n\nНастройка применяется сразу и сохраняется для следующего запуска. При отключении остаётся последний кадр или снимок.")
             }
+            Divider()
+            SectionHelpHeader(title: "Предпросмотр", explanation: "Эти параметры меняют только Live View на Mac и не влияют на сохраняемые JPEG. «Больше деталей» сохраняет все горизонтальные отсчёты экранного буфера; улучшение на IXUS 65 ещё не проверено. Частота — верхний предел, реальная скорость зависит от камеры. Исходный размер показывает кадр без увеличения, с учётом пропорций экрана камеры.")
+            Picker("Качество", selection: Binding(get: { model.previewDetailed }, set: { model.setPreviewDetailed($0) })) {
+                Text("Быстрее").tag(false)
+                Text("Больше деталей (экспериментально)").tag(true)
+            }
+            Picker("Частота обновления", selection: Binding(get: { model.previewFPS }, set: { model.setPreviewFPS($0) })) {
+                Text("Максимальная").tag(0)
+                ForEach([5, 10, 15], id: \.self) { Text("До \($0) кадров/с").tag($0) }
+            }
+            Picker("Отображение", selection: Binding(get: { model.previewNativeSize }, set: { model.setPreviewNativeSize($0) })) {
+                Text("По размеру окна").tag(false)
+                Text("Исходный размер").tag(true)
+            }
+            Divider()
             HStack {
                 Toggle("Держать подсветку выключенной", isOn: Binding(
                     get: { model.backlightOffEnabled }, set: { model.setBacklightOffEnabled($0) }
@@ -289,7 +304,25 @@ struct CameraSettingsView: View {
         }
         .disabled(model.busy)
         .padding(24)
-        .frame(width: 420)
+        .frame(width: 480)
+    }
+}
+
+struct PreviewImage: View {
+    let image: NSImage
+    let nativeSize: Bool
+    var body: some View {
+        if nativeSize {
+            GeometryReader { geometry in
+                ScrollView([.horizontal, .vertical]) {
+                    Image(nsImage: image).resizable()
+                        .frame(width: image.size.width, height: image.size.height)
+                        .frame(minWidth: geometry.size.width, minHeight: geometry.size.height)
+                }
+            }
+        } else {
+            Image(nsImage: image).resizable().aspectRatio(contentMode: .fit)
+        }
     }
 }
 

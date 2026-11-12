@@ -38,11 +38,27 @@ actor PreferencesCamera: CameraService {
             let camera = PreferencesCamera()
             let model = CameraModel(service: camera, preferences: preferences)
             guard model.liveEnabled && model.backlightOffEnabled else { throw CameraFailure(message: "First-run defaults") }
+            guard !model.previewDetailed && model.previewFPS == 10 && !model.previewNativeSize else { throw CameraFailure(message: "Preview defaults") }
+            guard CameraModel.previewWait(fps: 10, elapsed: 0.04) == 60_000_000,
+                  CameraModel.previewWait(fps: 10, elapsed: 0.2) == 0,
+                  CameraModel.previewWait(fps: 0, elapsed: 0) == 0 else { throw CameraFailure(message: "Frame budget adds delay to slow frames") }
             model.start()
             try await waitFor { !model.busy && model.liveFrames > 0 && model.keepBacklightOff }
             let actions = await camera.recordedActions()
             guard Array(actions.prefix(3)) == ["status", "live", "display:0"] else { throw CameraFailure(message: "Connection defaults order: \(actions)") }
             print("PASS: first connection starts preview, then disables backlight, on one service")
+            model.setPreviewDetailed(true)
+            model.setPreviewFPS(15)
+            model.setPreviewNativeSize(true)
+            try await waitFor { model.liveFrames >= 3 }
+            let previewActions = await camera.recordedActions()
+            let previewSize = model.preview?.size ?? .zero
+            let previewAspect = Double(previewSize.width) / max(1, Double(previewSize.height))
+            guard previewActions.contains("frame:1"), model.previewIsLive,
+                  abs(previewAspect - 4.0 / 3.0) < 0.001 else { throw CameraFailure(message: "Detailed preview request or aspect ratio") }
+            model.setPreviewFPS(7)
+            guard model.previewFPS == 15 else { throw CameraFailure(message: "Invalid frame rate accepted") }
+            print("PASS: preview quality applies during streaming; pacing accounts for processing and preserves aspect ratio")
             await camera.setRejectFocus(true)
             model.focusNow()
             try await waitFor { !model.busy && model.live && model.focusProblem != nil }
@@ -59,6 +75,7 @@ actor PreferencesCamera: CameraService {
             let secondCamera = PreferencesCamera()
             let second = CameraModel(service: secondCamera, preferences: preferences)
             guard !second.liveEnabled && !second.backlightOffEnabled else { throw CameraFailure(message: "Preferences not persisted") }
+            guard second.previewDetailed && second.previewFPS == 15 && second.previewNativeSize else { throw CameraFailure(message: "Preview preferences not persisted") }
             second.start()
             try await waitFor { !second.busy && second.state != nil }
             let secondActions = await secondCamera.recordedActions()
@@ -67,6 +84,12 @@ actor PreferencesCamera: CameraService {
             try await waitFor { !second.busy && second.liveFrames > 0 }
             second.setBacklightOffEnabled(true)
             try await waitFor { !second.busy && second.live && second.keepBacklightOff }
+            second.cameraMenuActive = true
+            second.setLiveEnabled(false)
+            guard second.live else { throw CameraFailure(message: "Disabling main preview stopped native menu updates") }
+            second.cameraMenuActive = false
+            second.setLiveEnabled(false)
+            guard !second.live else { throw CameraFailure(message: "Preview remained active outside native menu") }
             await second.shutdown()
             print("PASS: changes apply immediately, survive restart and preserve preview")
             let focusCamera = PreferencesCamera(supported: false)

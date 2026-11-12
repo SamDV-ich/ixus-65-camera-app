@@ -179,6 +179,14 @@ local f=assert(io.open(path..'.rgba','rb')); local overlay=f:read('*a'); f:close
 assert(overlay=='RGBA\n2 2\n'..string.rep(string.char(255),16))
 os.remove(path); os.remove(path..'.rgba'); _G.ixus_test_pixels=nil
 original_print('PASS: native screen writes the bitmap palette overlay beside the viewport frame')
+local skips={}
+_G.ixus_test_pixels={get_viewport_pimg=function(_,_,skip) skips[#skips+1]=skip; return pixels(3) end}
+local _,_,_,qualityResponses=scenario({'frame\t0\t'..hex..'\t1','frame\t1\t'..hex..'\t2','frame\t9\t'..hex..'\t3','QUIT'})
+assert(skips[1]==true and skips[2]==false and #skips==2)
+assert(qualityResponses[1]:match('"ok":true') and qualityResponses[2]:match('"ok":true') and qualityResponses[3]:match('"ok":false'))
+os.remove(path); _G.ixus_test_pixels=nil
+original_print('PASS: preview quality selects full or skipped decoding and rejects invalid requests')
+
 if arg[2] then
  local _,_,_,responses=scenario({'mode\t2\t\t0','status\t\t\t1','QUIT'})
  local f=assert(io.open(arg[2],'w')); f:write((responses[2]:gsub('^IXUS_RESULT:',''))); f:close()

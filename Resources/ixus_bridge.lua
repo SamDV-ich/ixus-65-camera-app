@@ -182,7 +182,8 @@ function M.run(action,value,output,request_id)
    con:live_get_frame(show_osd and 13 or 1)
    -- Upstream live_dump_vp_pbm halves the header width twice when skip=true.
    -- Write the actual decoded pixel dimensions and payload instead.
-   local p=require('liveimg').get_viewport_pimg(nil,con.live._frame,true)
+   assert(value==nil or value==0 or value==1,'Некорректное качество предпросмотра')
+   local p=require('liveimg').get_viewport_pimg(nil,con.live._frame,value~=1)
    assert(p,'Камера не передала изображение')
    local f=assert(io.open(output,'wb'))
    f:write(('P6\n%d %d\n255\n'):format(p:width(),p:height()))

@@ -8,6 +8,9 @@ import SwiftUI
     @Published var busy = false
     @Published private(set) var liveEnabled: Bool
     @Published private(set) var backlightOffEnabled: Bool
+    @Published private(set) var previewDetailed: Bool
+    @Published private(set) var previewFPS: Int
+    @Published private(set) var previewNativeSize: Bool
     private let preferences: UserDefaults
     @Published var live = false
     @Published var liveSupported = false
@@ -15,6 +18,7 @@ import SwiftUI
     @Published var lastFrameAt: Date?
     @Published var previewLabel = "Нет изображения"
     @Published var cameraMenuActive = false
+    @Published private(set) var previewIsLive = false
     @Published var preview: NSImage?
     @Published var lastPhoto: URL?
     @Published var message = "Ищу камеру с CHDK по USB…"
@@ -97,7 +101,25 @@ import SwiftUI
         guard !busy, !ending else { return }
         liveEnabled = enabled
         preferences.set(enabled, forKey: "liveEnabled")
+        if cameraMenuActive { return }
         if enabled { startLive() } else { stopLive() }
+    }
+    func setPreviewDetailed(_ enabled: Bool) {
+        previewDetailed = enabled
+        preferences.set(enabled, forKey: "previewDetailed")
+    }
+    func setPreviewFPS(_ value: Int) {
+        guard [0, 5, 10, 15].contains(value) else { return }
+        previewFPS = value
+        preferences.set(value, forKey: "previewFPS")
+    }
+    func setPreviewNativeSize(_ enabled: Bool) {
+        previewNativeSize = enabled
+        preferences.set(enabled, forKey: "previewNativeSize")
+    }
+    static func previewWait(fps: Int, elapsed: TimeInterval) -> UInt64 {
+        guard fps > 0 else { return 0 }
+        return UInt64(max(0, 1 / Double(fps) - elapsed) * 1_000_000_000)
     }
     func setBacklightOffEnabled(_ enabled: Bool) {
         guard !busy, !ending else { return }
@@ -110,6 +132,10 @@ import SwiftUI
         self.reconnectInterval = max(0, reconnectInterval)
         liveEnabled = preferences.object(forKey: "liveEnabled") as? Bool ?? true
         backlightOffEnabled = preferences.object(forKey: "backlightOffEnabled") as? Bool ?? true
+        previewDetailed = preferences.bool(forKey: "previewDetailed")
+        let savedFPS = preferences.object(forKey: "previewFPS") as? Int ?? 10
+        previewFPS = [0, 5, 10, 15].contains(savedFPS) ? savedFPS : 10
+        previewNativeSize = preferences.bool(forKey: "previewNativeSize")
         self.service = service ?? CHDKCameraService(resources: Bundle.main.resourceURL!)
         let saved = UserDefaults.standard.string(forKey: "photoFolder")
         folder = saved.map { URL(fileURLWithPath: $0) } ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Pictures/IXUS65")
@@ -233,7 +259,7 @@ import SwiftUI
                 let reply = try await service.execute("capture", value: nil, output: url)
                 update(reply)
                 guard let image = NSImage(contentsOf: url) else { throw CameraFailure(message: "JPEG скачан, но не удалось открыть изображение: " + url.path) }
-                preview = image; lastPhoto = url; previewLabel = "Последний снимок"
+                previewIsLive = false; preview = image; lastPhoto = url; previewLabel = "Последний снимок"
                 succeeded = true
                 note("Сохранён " + url.lastPathComponent + ". Оригинал оставлен на SD-карте.")
             } catch { connectionFailed(error); note("Ошибка съёмки: " + error.localizedDescription + ". Перед повтором проверьте SD-карту: снимок мог быть сделан.") }
@@ -274,7 +300,8 @@ import SwiftUI
             }
             while !Task.isCancelled && current == generation {
                 do {
-                    let reply = try await service.execute("frame", value: nil, output: url)
+                    let frameStarted = ProcessInfo.processInfo.systemUptime
+                    let reply = try await service.execute("frame", value: previewDetailed ? 1 : 0, output: url)
                     var image = try Self.decodePPM(Data(contentsOf: url))
                     if cameraMenuActive, let overlayPath = reply.overlay {
                         let overlay = try Self.decodeOverlay(Data(contentsOf: URL(fileURLWithPath: overlayPath)))
@@ -285,10 +312,15 @@ import SwiftUI
                         composite.unlockFocus()
                         image = composite
                     }
+                    // Full decoding retains more horizontal samples with non-square pixels.
+                    // Keep the camera's 4:3 display proportions in either quality mode.
+                    image.size = NSSize(width: image.size.height * 4 / 3, height: image.size.height)
                     guard !Task.isCancelled, current == generation else { return }
-                    preview = image; liveFrames += 1; lastFrameAt = Date()
+                    previewIsLive = true; preview = image; liveFrames += 1; lastFrameAt = Date()
                     previewLabel = "Live View"
-                    try await Task.sleep(nanoseconds: 150_000_000)
+                    let delay = Self.previewWait(fps: previewFPS, elapsed: ProcessInfo.processInfo.systemUptime - frameStarted)
+                    if delay > 0 { try await Task.sleep(nanoseconds: delay) }
+                    else { await Task.yield() }
                 } catch is CancellationError { return }
                 catch {
                     guard current == generation else { return }
