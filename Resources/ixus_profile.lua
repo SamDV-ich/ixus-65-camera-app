@@ -21,9 +21,9 @@ function M.controls(name)
  local controls=base_controls(name)
  name=(name or ''):gsub('^SCN_','')
  local manual=name=='P' or name=='LONG_SHUTTER'
- if name=='AUTO' then controls.iso={0,-1} end
+ if name=='AUTO' then controls.iso={0,1} end
  if manual or name=='DIGITAL_MACRO' then
-  controls.iso={0,-1,80,100,200,400,800}
+  controls.iso={0,1,80,100,200,400,800}
   controls.wb={0,1,2,3,4,5,7}
   controls.metering={0,1,2}
  end

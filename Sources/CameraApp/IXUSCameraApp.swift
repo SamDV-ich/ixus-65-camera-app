@@ -202,7 +202,7 @@ struct CameraExposureControls: View {
     @ObservedObject var model: CameraModel
     private func label(_ action: String, _ value: Int) -> String {
         switch action {
-        case "iso": return value == 0 ? "Авто" : (value == -1 ? "Высокое авто" : String(value))
+        case "iso": return value == 0 ? "Авто" : (value == 1 ? "Высокое авто" : String(value))
         case "wb": return [0:"Авто",1:"Дневной свет",2:"Облачно",3:"Лампа накаливания",4:"Люминесцентный",5:"Люминесцентный H",7:"Пользовательский"][value] ?? String(value)
         case "ev": return String(format: "%+.1f EV", Double(value) / 96)
         case "metering": return [0:"Оценочный",1:"Точечный",2:"Центровзвешенный"][value] ?? String(value)

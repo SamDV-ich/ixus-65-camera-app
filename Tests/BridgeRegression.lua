@@ -162,3 +162,7 @@ assert(not profile.allows(profile.controls('SCN_COLOR_SWAP'),'flash',0))
 assert(not profile.allows(profile.controls('STITCH'),'flash',0))
 assert(not profile.allows(profile.controls('PORTRAIT'),'focuslock',1))
 original_print('PASS: Canon mode restrictions exclude unavailable flash and focus-lock choices')
+
+assert(profile.allows(profile.controls('AUTO'),'iso',1))
+assert(not profile.allows(profile.controls('AUTO'),'iso',-1))
+original_print('PASS: High Auto ISO uses native property value 1 rather than a CHDK ISO table ID')
