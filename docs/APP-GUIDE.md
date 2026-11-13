@@ -73,7 +73,7 @@ The original legacy application and original CHDKPTP installation have not been 
 
 Application repository: /Users/dmitrysamoilovich/chdk-work/ixus-capture. Generated bundle: ../builds/ixus-capture/IXUS Camera.app, outside Git. Workspace-level docs cover film/darktable workflows, tools contains third-party installations, artifacts contains photographs/logs and archive contains old builds and the legacy application.
 
-Version 0.6.0 (build 9) includes configurable saving and preview preferences. See [SAVING.md](SAVING.md) for supported paths and hardware verification limits.
+Version 0.6.1 (build 9) includes configurable saving and preview preferences. See [SAVING.md](SAVING.md) for supported paths and hardware verification limits.
 
 ## Simple focus controls and mode restrictions
 

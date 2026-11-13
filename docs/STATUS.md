@@ -1,4 +1,4 @@
-# Application status: 0.6.0 (build 9)
+# Application status: 0.6.1 (build 10)
 
 Hardware checks used Canon IXUS 65, CHDK 1.6.1 rev6355 / 100A and Intel macOS Ventura 13.7.8.
 
@@ -72,4 +72,4 @@ The application now implements destination selection (camera, camera and Mac, Ma
 
 ## Independent retention
 
-Version 0.6.0 allows RAW/DNG-only Mac outputs and combinations with PNG/TIFF derived from JPEG, with independent card selection. Its selected-download and cleanup paths are checked offline. Previously saved CHDK RAW files were inspected at the expected IXUS 65 byte count; this does not validate the new selective deletion path on hardware. See [SAVING.md](SAVING.md).
+Version 0.6.1 allows RAW/DNG-only Mac outputs and combinations with PNG/TIFF derived from JPEG, with independent card selection. Its selected-download and cleanup paths are checked offline. Previously saved CHDK RAW files were inspected at the expected IXUS 65 byte count; this does not validate the new selective deletion path on hardware. See [SAVING.md](SAVING.md).

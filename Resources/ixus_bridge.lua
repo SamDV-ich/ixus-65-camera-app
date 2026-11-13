@@ -1,18 +1,20 @@
 -- Host-side adapter for the IXUS 65 profile; modes are validated by camera CHDK.
 local M={}
 local profile=require'ixus_profile'
-local function json(v)
+-- Empty Lua tables need explicit array semantics for protocol file lists.
+local array_fields={cameraFiles=true,capturedFiles=true}
+local function json(v,as_array)
  if type(v)=='boolean' or type(v)=='number' then return tostring(v) end
  if v==nil then return 'null' end
  if type(v)=='string' then return '"'..v:gsub('[%z\1-\31\\"]',function(c) return string.format('\\u%04x',c:byte()) end)..'"' end
- local count=0; local array=#v>0
+ local count=0; local array=as_array or #v>0
  for k in pairs(v) do count=count+1; if type(k)~='number' or k<1 or k%1~=0 or k>#v then array=false end end
  local out={}
  if array and count==#v then
   for i=1,#v do out[#out+1]=json(v[i]) end
   return '['..table.concat(out,',')..']'
  end
- for k,x in pairs(v) do out[#out+1]=json(tostring(k))..':'..json(x) end
+ for k,x in pairs(v) do out[#out+1]=json(tostring(k))..':'..json(x,array_fields[k]) end
  return '{'..table.concat(out,',')..'}'
 end
 local menu_active=false

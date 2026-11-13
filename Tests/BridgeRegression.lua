@@ -224,3 +224,22 @@ assert(replies[1]:match('"captureFailed":true') and replies[2]:match('"ok":true'
 assert(connections==0 and select(2,calls:gsub('disconnect',''))==1,calls)
 package.loaded.ixus_capture=previous_capture
 original_print('PASS: a recoverable capture failure preserves the existing USB session and subsequent polling')
+
+local previous_capture=package.loaded.ixus_capture
+local finishes=0
+package.loaded.ixus_capture={finish=function()
+ finishes=finishes+1
+ return {deleted=true,cameraFiles={},capturedFiles={}}
+end}
+local calls,_,connections,replies=scenario({'finishcapture\t\t\t1','poll\t\t\t2','QUIT'})
+assert(replies[1]:match('"cameraFiles":%[%]') and replies[1]:match('"capturedFiles":%[%]'),replies[1])
+assert(replies[2]:match('"ok":true') and finishes==1 and connections==0)
+if arg[2] then
+ local f=assert(io.open(arg[2]..'.empty-files','w'))
+ f:write((replies[1]:gsub('^IXUS_RESULT:',''))); f:close()
+end
+package.loaded.ixus_capture={finish=function() return {deleted=true,cameraFiles={'A/DCIM/100CANON/CRW_6202.DNG'}} end}
+local _,_,_,replies=scenario({'finishcapture\t\t\t1','QUIT'})
+assert(replies[1]:match('"cameraFiles":%["A/DCIM/100CANON/CRW_6202.DNG"%]'),replies[1])
+package.loaded.ixus_capture=previous_capture
+original_print('PASS: empty and nonempty file arrays retain their protocol types; cleanup is not repeated and polling continues')

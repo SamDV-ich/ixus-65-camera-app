@@ -49,3 +49,7 @@ Capture errors include the failing stage (property preparation, shooting, remote
 Existing settings migrate without changing their output files: previous RAW/DNG preferences retain JPEG as well, and the prior conversion companion choice is preserved. The new sensor mode, Mac outputs and card selection persist separately. Conversion to TIFF from RAW is not implemented by this saving pane; TIFF is explicitly labelled as derived from JPEG.
 
 The request protocol carries explicit download and retention masks with legacy-code compatibility. Tests cover RAW/DNG-only local results, combined RAW/DNG plus PNG/TIFF outputs without JPEG, unchanged legacy defaults, no JPEG transfer for RAW-only, selected card cleanup without a Mac destination, and preventing deletion when the retained sensor file changes. No new physical camera access or deletion was performed for these changes.
+
+## Empty-list protocol fix in version 0.6.1
+
+The host serializer now encodes empty `cameraFiles` and `capturedFiles` tables as JSON arrays `[]`, while retaining empty object semantics for dictionaries. Previously, a successful cleanup leaving no camera files produced `{}` for the file list, causing Swift decoding to fail after deletion might already have completed. This did not indicate that the saved local DNG was damaged. The regression passes an actual Lua cleanup envelope to the Swift decoder and checks subsequent polling without repeating cleanup. No physical deletion was performed for this fix.
