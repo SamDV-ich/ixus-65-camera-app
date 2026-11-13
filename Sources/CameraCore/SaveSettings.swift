@@ -13,16 +13,46 @@ struct SaveSettings: Codable, Sendable {
     var quality = -1
     var resolution = -1
     static let formats = ["jpeg", "png", "tiff", "raw", "dng"]
+    // Optional fields migrate existing preferences without changing their outputs.
+    var sensorMode: String? = nil
+    var selectedMacFormats: [String]? = nil
+    var cameraRetention: String? = nil
+    var selectedCameraFormats: [String]? = nil
+    var sensorKind: String { sensorMode ?? (["raw", "dng"].contains(format) ? format : "none") }
+    var macFormats: [String] {
+        if let selected = selectedMacFormats { return selected }
+        if ["png", "tiff"].contains(format) { return [format] + (keepJPEG ? ["jpeg"] : []) }
+        return ["raw", "dng"].contains(format) ? ["jpeg", format] : ["jpeg"]
+    }
+    var createdKinds: [String] { ["jpeg"] + (sensorKind == "none" ? [] : [sensorKind]) }
+    var cardPolicy: String { destination == 2 ? "none" : (cameraRetention ?? "all") }
+    var cardFormats: [String] {
+        if cardPolicy == "none" { return [] }
+        return cardPolicy == "all" ? createdKinds : (selectedCameraFormats ?? createdKinds)
+    }
+    var needsCameraCleanup: Bool { createdKinds.contains { !cardFormats.contains($0) } }
     var captureCode: Int {
-        let raw = format == "raw" ? 1 : (format == "dng" ? 2 : 0)
-        return raw + destination * 10 + (quality + 1) * 100 + (resolution + 1) * 1000
+        let raw = sensorKind == "raw" ? 1 : (sensorKind == "dng" ? 2 : 0)
+        let needsJPEG = macFormats.contains { ["jpeg", "png", "tiff"].contains($0) }
+        let download = destination == 1 ? 0 : ((needsJPEG ? 1 : 0) + (macFormats.contains(sensorKind) ? 2 : 0))
+        let keep = (cardFormats.contains("jpeg") ? 1 : 0) + (cardFormats.contains(sensorKind) ? 2 : 0)
+        return 1_000_000 + keep * 100_000 + download * 10_000 + raw + destination * 10 + (quality + 1) * 100 + (resolution + 1) * 1000
     }
     var destinationTitle: String { ["Камера и Mac", "Только камера", "Только Mac"][min(2, max(0, destination))] }
     func validate() throws {
+        if destination != 1 && macFormats.isEmpty { throw CameraFailure(message: "Выберите хотя бы один файл для сохранения на Mac") }
+        if destination == 1 && cardFormats.isEmpty { throw CameraFailure(message: "Выберите хотя бы один файл, который останется на камере") }
+        if cardPolicy == "selected" && cardFormats.isEmpty { throw CameraFailure(message: "Выберите файлы для карты или режим «Только на Mac»") }
         guard (0...2).contains(destination), Self.formats.contains(format),
               ["datetime", "original", "custom"].contains(naming), ["none", "day", "month"].contains(grouping),
               [-1, 0, 1, 2].contains(quality), [-1, 0, 1, 2, 4, 8].contains(resolution), counter > 0, counter < 1_000_000_000,
-              !(destination == 1 && ["png", "tiff"].contains(format)) else { throw CameraFailure(message: "Некорректные настройки сохранения") }
+              ["none", "raw", "dng"].contains(sensorKind), ["all", "selected", "none"].contains(cardPolicy),
+              Set(macFormats).count == macFormats.count, macFormats.allSatisfy({ Self.formats.contains($0) }),
+              macFormats.filter({ ["raw", "dng"].contains($0) }).allSatisfy({ $0 == sensorKind }),
+              cardFormats.allSatisfy({ createdKinds.contains($0) }),
+              (destination == 1 || !macFormats.isEmpty),
+              (cardPolicy != "selected" || !cardFormats.isEmpty),
+              (destination != 1 || !cardFormats.isEmpty) else { throw CameraFailure(message: "Некорректные настройки сохранения") }
         if naming == "custom" { _ = try basename(original: "IMG_0001.JPG", date: Date()) }
     }
     static func dateText(_ date: Date, _ pattern: String) -> String {
@@ -74,7 +104,8 @@ enum CaptureFiles {
     }
     static func save(staging: URL, files: [CapturedFile], settings: SaveSettings, folder: URL, date: Date) throws -> SavedCapture {
         try settings.validate()
-        guard let jpeg = files.first(where: { $0.kind == "jpeg" }) else { throw CameraFailure(message: "Камера не вернула JPEG") }
+        guard !files.isEmpty else { throw CameraFailure(message: "Нет скачанных файлов") }
+        let jpeg = files.first(where: { $0.kind == "jpeg" })
         for file in files {
             guard URL(fileURLWithPath: file.name).lastPathComponent == file.name, !file.name.contains("/"), file.size > 0 else { throw CameraFailure(message: "Некорректное имя скачанного файла") }
             // DNG is checked as a TIFF container here; RAW has no standard decoder.
@@ -82,20 +113,23 @@ enum CaptureFiles {
         }
         let directory = settings.directory(folder: folder, date: date)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let base = try settings.basename(original: jpeg.name, date: date)
+        let base = try settings.basename(original: jpeg?.name ?? files[0].name, date: date)
         var products: [(URL, String)] = []
-        if ["png", "tiff"].contains(settings.format) {
-            let sourceURL = staging.appendingPathComponent(jpeg.name)
-            let converted = staging.appendingPathComponent("converted." + settings.format)
-            let type = settings.format == "png" ? UTType.png.identifier : UTType.tiff.identifier
-            guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil), let writer = CGImageDestinationCreateWithURL(converted as CFURL, type as CFString, 1, nil) else { throw CameraFailure(message: "Не удалось преобразовать JPEG") }
-            CGImageDestinationAddImageFromSource(writer, source, 0, nil)
-            guard CGImageDestinationFinalize(writer) else { throw CameraFailure(message: "Ошибка записи преобразованного файла") }
-            try validate(converted, kind: settings.format)
-            products.append((converted, settings.format))
-            if settings.keepJPEG { products.append((sourceURL, "jpg")) }
-        } else {
-            for file in files { products.append((staging.appendingPathComponent(file.name), file.kind == "jpeg" ? "jpg" : file.kind)) }
+        for format in settings.macFormats {
+            if ["png", "tiff"].contains(format) {
+                guard let jpeg = jpeg else { throw CameraFailure(message: "Для преобразования нужен JPEG камеры") }
+                let sourceURL = staging.appendingPathComponent(jpeg.name)
+                let converted = staging.appendingPathComponent("converted." + format)
+                let type = format == "png" ? UTType.png.identifier : UTType.tiff.identifier
+                guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil), let writer = CGImageDestinationCreateWithURL(converted as CFURL, type as CFString, 1, nil) else { throw CameraFailure(message: "Не удалось преобразовать JPEG") }
+                CGImageDestinationAddImageFromSource(writer, source, 0, nil)
+                guard CGImageDestinationFinalize(writer) else { throw CameraFailure(message: "Ошибка записи преобразованного файла") }
+                try validate(converted, kind: format)
+                products.append((converted, format))
+            } else {
+                guard let file = files.first(where: { $0.kind == format }) else { throw CameraFailure(message: "Не получен выбранный файл: " + format.uppercased()) }
+                products.append((staging.appendingPathComponent(file.name), format == "jpeg" ? "jpg" : format))
+            }
         }
         // A single suffix keeps companions together. copyItem refuses existing files;
         // verify all products before allowing deletion of the camera originals.

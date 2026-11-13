@@ -248,16 +248,37 @@ import SwiftUI
     }
     func setSaveDestination(_ value: Int) {
         saving.destination = value
-        if value == 1 && ["png", "tiff"].contains(saving.format) { saving.format = "jpeg" }
+        if value != 2 && saving.cardPolicy == "none" { saving.cameraRetention = "all" }
+    }
+    func setSensorKind(_ kind: String) {
+        let old = saving.sensorKind
+        let outputs = saving.macFormats
+        let card = saving.cardFormats
+        saving.sensorMode = kind
+        saving.selectedMacFormats = outputs.filter { !["raw", "dng"].contains($0) } + (kind != "none" ? [kind] : [])
+        if saving.cardPolicy == "selected" {
+            saving.selectedCameraFormats = card.filter { !["raw", "dng"].contains($0) } + (kind != "none" && card.contains(old) ? [kind] : [])
+        }
+    }
+    func setMacFormat(_ format: String, enabled: Bool) {
+        var outputs = saving.macFormats.filter { $0 != format }
+        if enabled { outputs.append(format) }
+        saving.selectedMacFormats = outputs
+    }
+    func setCardFormat(_ format: String, enabled: Bool) {
+        var outputs = saving.cardFormats.filter { $0 != format }
+        if enabled { outputs.append(format) }
+        saving.selectedCameraFormats = outputs
     }
     var saveExample: String {
-        if saving.destination == 1 { return "Оригиналы остаются на карте камеры" }
+        if saving.destination == 1 { return "На камере: " + saving.cardFormats.map { $0.uppercased() }.joined(separator: ", ") }
         do {
             try saving.validate()
             let date = Date()
             let name = try saving.basename(original: "IMG_6202.JPG", date: date)
-            let ext = saving.format == "jpeg" ? "jpg" : saving.format
-            return saving.directory(folder: folder, date: date).appendingPathComponent(name + "." + ext).path
+            return saving.macFormats.map { format in
+                saving.directory(folder: folder, date: date).appendingPathComponent(name + "." + (format == "jpeg" ? "jpg" : format)).path
+            }.joined(separator: "\n")
         } catch { return error.localizedDescription }
     }
     func openSaveFolder() { NSWorkspace.shared.open(folder) }
@@ -265,6 +286,7 @@ import SwiftUI
         guard !ending, !busy, state != nil else { return }
         let settings = saving
         do { try settings.validate() } catch { self.error = error.localizedDescription; return }
+        self.error = nil
         let selectedFolder = folder
         let date = Date()
         operationRevision += 1
@@ -298,30 +320,33 @@ import SwiftUI
                 }
                 update(reply)
                 saving.counter += 1
+                var savedPaths: [URL] = []
                 if settings.destination == 1 {
                     lastPhoto = nil
-                    note("Сохранено на камере: " + (reply.cameraFiles ?? []).joined(separator: ", "))
-                    return
-                }
-                guard let staging = staging, let files = reply.capturedFiles, !files.isEmpty else { throw CameraFailure(message: "Нет списка скачанных файлов") }
-                let saved = try await Task.detached {
-                    try CaptureFiles.save(staging: staging, files: files, settings: settings, folder: selectedFolder, date: date)
-                }.value
-                lastPhoto = saved.files.first
-                if let url = saved.preview, let image = NSImage(contentsOf: url) {
-                    previewIsLive = false; preview = image; previewLabel = "Последний снимок"
-                }
-                if settings.destination == 2 {
-                    do {
-                        let result = try await service.execute("finishcapture", value: nil, output: nil)
-                        if result.deleted != true { self.error = result.warning ?? "Файлы на Mac сохранены, но удаление с камеры не подтверждено." }
-                    } catch {
-                        canResume = false; connectionFailed(error)
-                        self.error = "Файлы на Mac сохранены. Удаление с камеры не подтверждено: " + error.localizedDescription
+                } else {
+                    guard let staging = staging, let files = reply.capturedFiles, !files.isEmpty else { throw CameraFailure(message: "Нет списка скачанных файлов") }
+                    let saved = try await Task.detached {
+                        try CaptureFiles.save(staging: staging, files: files, settings: settings, folder: selectedFolder, date: date)
+                    }.value
+                    savedPaths = saved.files
+                    lastPhoto = saved.files.first
+                    if let url = saved.preview, let image = NSImage(contentsOf: url) {
+                        previewIsLive = false; preview = image; previewLabel = "Последний снимок"
                     }
                 }
-                try? FileManager.default.removeItem(at: staging)
-                note("Сохранено: " + saved.files.map { $0.path }.joined(separator: ", ") + (settings.destination == 0 ? ". Оригиналы оставлены на карте." : ""))
+                if settings.needsCameraCleanup {
+                    do {
+                        let result = try await service.execute("finishcapture", value: nil, output: nil)
+                        if result.deleted != true { self.error = result.warning ?? "Сохранение выполнено, но удаление лишних файлов с камеры не подтверждено." }
+                    } catch {
+                        canResume = false; connectionFailed(error)
+                        self.error = "Сохранение выполнено. Удаление лишних файлов с камеры не подтверждено: " + error.localizedDescription
+                    }
+                }
+                if let staging = staging { try? FileManager.default.removeItem(at: staging) }
+                let local = savedPaths.isEmpty ? "" : "На Mac: " + savedPaths.map { $0.path }.joined(separator: ", ") + ". "
+                let card = settings.cardFormats.isEmpty ? "На карте файлы снимка не оставляются." : "На карте: " + settings.cardFormats.map { $0.uppercased() }.joined(separator: ", ")
+                note(local + (self.error == nil ? card : self.error!))
             } catch {
                 let recovery = staging.map { " Загруженные файлы, если они есть: " + $0.path } ?? ""
                 let warning = shotRequested ? " Снимок мог быть сделан; перед повтором проверьте карту. Оригиналы автоматически не удалялись." : " Съёмка не запускалась."

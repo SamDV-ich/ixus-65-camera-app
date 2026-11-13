@@ -399,21 +399,41 @@ struct SaveSettingsView: View {
                 }
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Picker("Формат", selection: $model.saving.format) {
-                            Text("JPEG камеры (без преобразования)").tag("jpeg")
-                            if model.saving.destination != 1 {
-                                Text("PNG из JPEG").tag("png")
-                                Text("TIFF из JPEG").tag("tiff")
+                        Picker("Данные матрицы", selection: Binding(get: { model.saving.sensorKind }, set: { model.setSensorKind($0) })) {
+                            Text("Не записывать — только JPEG").tag("none")
+                            Text("CHDK RAW").tag("raw")
+                            Text("DNG").tag("dng")
+                        }
+                        Text("Canon создаёт JPEG при каждом снимке. Ниже выберите, какие файлы скачать и какие оставить на карте. Для одного снимка выбирается RAW или DNG.").font(.caption).foregroundColor(.secondary)
+                        if model.saving.destination != 1 {
+                            GroupBox("Файлы на Mac") {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    macToggle("Оригинальный JPEG", kind: "jpeg")
+                                    if model.saving.sensorKind != "none" {
+                                        macToggle(model.saving.sensorKind.uppercased(), kind: model.saving.sensorKind)
+                                    }
+                                    macToggle("PNG из JPEG", kind: "png")
+                                    macToggle("TIFF из JPEG", kind: "tiff")
+                                    Text("Можно выбрать несколько файлов. PNG/TIFF создаются из JPEG, не из RAW. JPEG для преобразования скачивается временно, даже если его сохранение отключено.").font(.caption).foregroundColor(.secondary)
+                                }.frame(maxWidth: .infinity, alignment: .leading).padding(6)
                             }
-                            Text("CHDK RAW + JPEG").tag("raw")
-                            Text("DNG + JPEG").tag("dng")
                         }
-                        if ["png", "tiff"].contains(model.saving.format) {
-                            Toggle("Также сохранять оригинальный JPEG", isOn: $model.saving.keepJPEG)
-                            Text("Преобразование не добавляет деталей к исходному JPEG.").font(.caption).foregroundColor(.secondary)
-                        }
-                        if ["raw", "dng"].contains(model.saving.format) {
-                            Text("RAW/DNG на этой камере ещё не проверялись. Сохраняется также JPEG. Если формат недоступен в выбранном режиме, приложение сообщит об ошибке.").font(.caption).foregroundColor(.secondary)
+                        if model.saving.destination != 2 {
+                            GroupBox("Файлы на карте камеры") {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Picker("Оставлять", selection: Binding(get: { model.saving.cardPolicy }, set: { model.saving.cameraRetention = $0 })) {
+                                        Text("Все созданные файлы").tag("all")
+                                        Text("Только выбранные файлы").tag("selected")
+                                    }
+                                    if model.saving.cardPolicy == "selected" {
+                                        cardToggle("JPEG", kind: "jpeg")
+                                        if model.saving.sensorKind != "none" {
+                                            cardToggle(model.saving.sensorKind.uppercased(), kind: model.saving.sensorKind)
+                                        }
+                                        Text("Лишние файлы только этого снимка удаляются после проверки сохранения. Если Mac отключён, сначала проверяются оставляемые файлы на карте.").font(.caption).foregroundColor(.secondary)
+                                    }
+                                }.frame(maxWidth: .infinity, alignment: .leading).padding(6)
+                            }
                         }
                         Picker("Качество JPEG камеры", selection: $model.saving.quality) {
                             Text("Как на камере").tag(-1)
@@ -460,6 +480,12 @@ struct SaveSettingsView: View {
                 }
             }.padding(16)
         }.disabled(model.busy)
+    }
+    private func macToggle(_ title: String, kind: String) -> some View {
+        Toggle(title, isOn: Binding(get: { model.saving.macFormats.contains(kind) }, set: { model.setMacFormat(kind, enabled: $0) }))
+    }
+    private func cardToggle(_ title: String, kind: String) -> some View {
+        Toggle(title, isOn: Binding(get: { model.saving.cardFormats.contains(kind) }, set: { model.setCardFormat(kind, enabled: $0) }))
     }
     private func qualityName(_ value: Int?) -> String {
         [0: "Superfine", 1: "Fine", 2: "Normal"][value ?? -1] ?? "—"

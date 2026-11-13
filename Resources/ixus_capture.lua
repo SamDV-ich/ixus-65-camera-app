@@ -11,10 +11,19 @@ function M.take(con,code,output)
  M.stage="Проверка параметров сохранения"; M.shotRequested=false
  code=code or 0
  local format=code%10; local destination=math.floor(code/10)%10
- local quality=math.floor(code/100)%10-1; local resolution=math.floor(code/1000)-1
+ local quality=math.floor(code/100)%10-1; local resolution=math.floor(code/1000)%10-1
  assert(format>=0 and format<=2 and destination>=0 and destination<=2,'Некорректный формат или назначение')
  assert(quality>=-1 and quality<=2 and (resolution==-1 or resolution==0 or resolution==1 or resolution==2 or resolution==4 or resolution==8),'Некорректное качество или размер')
  assert(destination==1 or (output and output~=''),'Не выбрана папка')
+ local modern=math.floor(code/1000000)==1
+ local download_mask=modern and math.floor(code/10000)%10 or (destination==1 and 0 or (format>0 and 3 or 1))
+ local keep_mask=modern and math.floor(code/100000)%10 or (destination==2 and 0 or (format>0 and 3 or 1))
+ assert(download_mask>=0 and download_mask<=3 and keep_mask>=0 and keep_mask<=3,'Некорректный выбор файлов')
+ assert(destination~=1 or download_mask==0,'Скачивание отключено для режима только камеры')
+ assert(destination~=1 or keep_mask>0,'Нельзя удалить все файлы без сохранения на Mac')
+ assert(format>0 or (download_mask<=1 and keep_mask<=1),'Выбран RAW без записи данных матрицы')
+ assert(destination==1 or download_mask>0,'Не выбраны файлы для скачивания')
+ assert(destination~=2 or keep_mask==0,'Режим только Mac не оставляет файлы на карте')
  pending=nil
  -- These property writes and readbacks occur before shoot; refusal cannot take a photo.
  local prepare=([[local p=require'propcase';
@@ -47,7 +56,9 @@ function M.take(con,code,output)
   assert(stat and stat.size and stat.size>0,'Снимок не найден на карте; проверьте карту перед повтором')
   file.size=stat.size; file.mtime=stat.mtime
   file.name=file.path:match('([^/]+)$')
-  if destination~=1 then
+  local bit=file.kind=='jpeg' and 1 or 2
+  file.keep=math.floor(keep_mask/bit)%2==1
+  if math.floor(download_mask/bit)%2==1 then
    M.stage='Скачивание с камеры: '..file.path
    -- Native CHDKPTP download returns no values on success and throws on error.
    con:download(file.path,output..'/'..file.name)
@@ -57,7 +68,7 @@ function M.take(con,code,output)
    downloaded[#downloaded+1]={name=file.name,kind=file.kind,size=file.size}
   end
  end
- if destination==2 then pending=paths end
+ for _,file in ipairs(paths) do if not file.keep then pending=paths; break end end
  return {capturedFiles=destination~=1 and downloaded or nil,cameraFiles=cameraFiles}
 end
 
@@ -77,8 +88,19 @@ end
 function M.finish(con)
  assert(pending,'Нет подтверждённого снимка для удаления')
  -- The caller invokes this only after all requested local products are durable.
- local remaining={}; local failures={}
+ local remaining={}; local failures={}; local kept={}
+ -- A card-only selection must exist unchanged before deleting its companions.
  for _,file in ipairs(pending) do
+  if file.keep then
+   local ok,stat=pcall(function() return con:stat(file.path) end)
+   if not ok or not stat or stat.size~=file.size or (file.mtime and stat.mtime~=file.mtime) then
+    return {deleted=false,warning='Выбранный файл на камере изменён или недоступен. Ничего не удалено.'}
+   end
+   kept[#kept+1]=file.path
+  end
+ end
+ for _,file in ipairs(pending) do
+  if not file.keep then
   local status,stat=pcall(function() return con:stat(file.path) end)
   if not status or not stat or stat.size~=file.size or (file.mtime and stat.mtime~=file.mtime) then
    remaining[#remaining+1]=file; failures[#failures+1]=file.path
@@ -86,8 +108,12 @@ function M.finish(con)
    local status,ok=pcall(function() return con:remove(file.path) end)
    if not status or not ok then remaining[#remaining+1]=file; failures[#failures+1]=file.path end
   end
+  end
  end
- pending=#remaining>0 and remaining or nil
- return {deleted=#failures==0,warning=#failures>0 and ('Файлы на Mac сохранены. Не удалось удалить с камеры: '..table.concat(failures,', ')) or nil}
+ if #remaining>0 then
+  for _,file in ipairs(pending) do if file.keep then remaining[#remaining+1]=file end end
+ end
+ pending=#failures>0 and remaining or nil
+ return {deleted=#failures==0,cameraFiles=kept,warning=#failures>0 and ('Сохранение выполнено. Не удалось удалить с камеры: '..table.concat(failures,', ')) or nil}
 end
 return M

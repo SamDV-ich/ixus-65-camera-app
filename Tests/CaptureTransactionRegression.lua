@@ -62,7 +62,26 @@ local ok,err=pcall(function()
  local success,message=pcall(capture.attempt,camera,20,directory)
  assert(not success and tostring(message):find('Скачивание с камеры:',1,true))
  camera.script_status=original_status
- fail_download=false; reject_property=true
+ fail_download=false
+ -- Only RAW downloaded, both originals retained: no JPEG transfer or cleanup.
+ clean()
+ local rawOnly=capture.take(camera,1320001,directory)
+ assert(#rawOnly.capturedFiles==1 and rawOnly.capturedFiles[1].kind=='raw')
+ assert(not io.open(directory..'/IMG_6202.JPG','rb'))
+ assert(not pcall(capture.finish,camera))
+ -- Camera-only DNG selection: protect DNG, remove the unwanted JPEG.
+ clean()
+ local cameraOnly=capture.take(camera,1200012,nil)
+ assert(not cameraOnly.capturedFiles)
+ assert(capture.finish(camera).deleted and paths['A/DCIM/100CANON/CRW_6202.DNG'] and not paths['A/DCIM/100CANON/IMG_6202.JPG'])
+ -- Verify retained originals before any deletion, even in camera-only mode.
+ capture.take(camera,1200012,nil)
+ paths['A/DCIM/100CANON/CRW_6202.DNG'].mtime=101
+ local blocked=capture.finish(camera)
+ assert(not blocked.deleted and paths['A/DCIM/100CANON/IMG_6202.JPG'])
+ -- No-download/no-retention requests cannot discard an entire shot.
+ assert(not pcall(capture.take,camera,1000012,nil))
+ reject_property=true
  local before=shots
  assert(not pcall(capture.take,camera,100,directory))
  assert(shots==before,'Property refusal still took a shot')

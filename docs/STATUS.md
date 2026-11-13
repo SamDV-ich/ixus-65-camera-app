@@ -1,4 +1,4 @@
-# Application status: 0.5.1 (build 8)
+# Application status: 0.6.0 (build 9)
 
 Hardware checks used Canon IXUS 65, CHDK 1.6.1 rev6355 / 100A and Intel macOS Ventura 13.7.8.
 
@@ -69,3 +69,7 @@ Canon MENU display and FUNC display/navigation were captured. FUNC survived stat
 ## Saving preferences
 
 The application now implements destination selection (camera, camera and Mac, Mac after verified download), OS Pictures default, JPEG/RAW/DNG capture, local PNG/TIFF conversion, quality and resolution preferences, naming templates and day/month folders. The new transaction's offline verification and physical-test limits are recorded in [SAVING.md](SAVING.md). Earlier JPEG hardware success predates this transaction and must not be treated as physical validation of its RAW/DNG or deletion path.
+
+## Independent retention
+
+Version 0.6.0 allows RAW/DNG-only Mac outputs and combinations with PNG/TIFF derived from JPEG, with independent card selection. Its selected-download and cleanup paths are checked offline. Previously saved CHDK RAW files were inspected at the expected IXUS 65 byte count; this does not validate the new selective deletion path on hardware. See [SAVING.md](SAVING.md).

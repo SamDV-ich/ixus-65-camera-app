@@ -23,7 +23,7 @@ Controls currently use localized labels. This guide describes their function in 
 - **Focus range:** normal, macro or infinity, mirroring the camera control. Selection applies immediately, releases AF Lock and uses the native Canon button with state readback, rather than a synthetic distance override. Close camera menus first. Some shooting modes restrict available ranges; refusal is reported. Camera-side changes appear during polling. Macro and infinity are distinct from the Digital Macro shooting mode.
 - **Focus distance (advanced):** 100–10000 mm using AF Lock and CHDK set_focus. A 1000 mm request returned 1008 mm on the camera; this does not establish optical accuracy. Press Enter or use the explicit Set button to apply. Leaving an advanced distance draft does not silently change focus. Focus now actively autofocuses without a photograph. Unlocking releases AF Lock so the next photograph can autofocus again.
 
-Commands enter record mode when needed. Camera settings remain on the camera after application exit. Capture temporarily selects CHDK RAW/DNG behavior through the standard CHDKPTP shooting library, which restores its original configuration after a successful shot. Failed downloads may still leave a new photograph on the SD card: inspect it before repeating capture. The application deletes only the files of the current shot when Only Mac was explicitly selected and all requested local products were successfully saved and checked. It never automatically repeats capture.
+Commands enter record mode when needed. Camera settings remain on the camera after application exit. Capture temporarily selects CHDK RAW/DNG behavior through the standard CHDKPTP shooting library, which restores its original configuration after a successful shot. Failed downloads may still leave a new photograph on the SD card: inspect it before repeating capture. The application deletes only the files of the current shot when Only Mac or selective card retention was explicitly selected. Local products must be saved and checked first; camera-only cleanup first verifies all retained camera files. It never automatically repeats capture.
 
 ## Connection and battery
 
@@ -73,7 +73,7 @@ The original legacy application and original CHDKPTP installation have not been 
 
 Application repository: /Users/dmitrysamoilovich/chdk-work/ixus-capture. Generated bundle: ../builds/ixus-capture/IXUS Camera.app, outside Git. Workspace-level docs cover film/darktable workflows, tools contains third-party installations, artifacts contains photographs/logs and archive contains old builds and the legacy application.
 
-Version 0.5.1 (build 8) includes configurable saving and preview preferences. See [SAVING.md](SAVING.md) for supported paths and hardware verification limits.
+Version 0.6.0 (build 9) includes configurable saving and preview preferences. See [SAVING.md](SAVING.md) for supported paths and hardware verification limits.
 
 ## Simple focus controls and mode restrictions
 
@@ -87,7 +87,7 @@ The all-camera-settings button opens the actual camera screen, including Canon's
 
 Use FUNC for shooting parameters and SET to confirm. MENU opens the main menu from the shooting screen; inside FUNC it performs the selected parameter's context action, such as advanced white-balance or long-shutter controls. Optional half-press combinations hold only the half-shutter while sending a selected button and release it afterward, including on failure. Full shutter is never sent by the menu controls. Closing the window finishes the FUNC session with SET and backs out of main MENU panels using MENU, without starting autofocus, then restores the selected Live View preference.
 
-Image size/compression, drive and timer options, color effects and custom color parameters, autofocus-area/assist options, red-eye and slow-sync settings, long-shutter selection, digital zoom, rotation and grid settings are accessed through Canon's own menus where available. AE/FE operations use Canon's native button combinations. These are controls of the camera, not automatic implementation of burst download or video recording in the application. The dedicated saving preferences now expose JPEG quality and resolution as pre-shot property overrides with readback; the other controls remain in the native menus. Saving can also request CHDK RAW or DNG with a JPEG companion.
+Image size/compression, drive and timer options, color effects and custom color parameters, autofocus-area/assist options, red-eye and slow-sync settings, long-shutter selection, digital zoom, rotation and grid settings are accessed through Canon's own menus where available. AE/FE operations use Canon's native button combinations. These are controls of the camera, not automatic implementation of burst download or video recording in the application. The dedicated saving preferences now expose JPEG quality and resolution as pre-shot property overrides with readback; the other controls remain in the native menus. Saving can also request CHDK RAW or DNG, with independent JPEG retention on Mac and camera.
 
 Direct property readback verifies reported Canon state, not the optical or photographic effect. Additional control values and native menu behavior still require hardware validation on this camera.
 

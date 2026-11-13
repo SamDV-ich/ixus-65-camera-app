@@ -37,9 +37,22 @@ actor SavingCamera: CameraService {
                 try expect(output == nil, "Camera-only created local output")
                 return CameraReply(cameraFiles: ["A/DCIM/100CANON/IMG_6202.JPG"])
             }
-            let payload = badDownload ? Data("broken".utf8) : data
-            try payload.write(to: output!.appendingPathComponent("IMG_6202.JPG"))
-            return CameraReply(capturedFiles: [CapturedFile(name: "IMG_6202.JPG", kind: "jpeg", size: payload.count)], cameraFiles: ["A/DCIM/100CANON/IMG_6202.JPG"])
+            let code = value ?? 0
+            let mask = code >= 1_000_000 ? code / 10_000 % 10 : 3
+            var files: [CapturedFile] = []
+            if mask % 2 == 1 {
+                let payload = badDownload ? Data("broken".utf8) : data
+                try payload.write(to: output!.appendingPathComponent("IMG_6202.JPG"))
+                files.append(CapturedFile(name: "IMG_6202.JPG", kind: "jpeg", size: payload.count))
+            }
+            if mask / 2 % 2 == 1 {
+                let kind = code % 10 == 1 ? "raw" : "dng"
+                let payload = kind == "raw" ? Data(repeating: 60, count: 64) : Data([73,73,42,0]) + Data(repeating: 0, count: 1020)
+                let name = "CRW_6202." + kind
+                try payload.write(to: output!.appendingPathComponent(name))
+                files.append(CapturedFile(name: name, kind: kind, size: payload.count))
+            }
+            return CameraReply(capturedFiles: files, cameraFiles: ["A/DCIM/100CANON/IMG_6202.JPG"])
         }
         if action == "finishcapture" { return CameraReply(warning: deleteFails ? "Retained on camera" : nil, deleted: !deleteFails) }
         return CameraReply()
@@ -100,7 +113,7 @@ actor SavingCamera: CameraService {
                 catch let e as CameraFailure { if e.message == "Unsafe template accepted" { throw e } }
             }
             settings = SaveSettings(); settings.resolution = 4; settings.quality = 2; settings.format = "dng"; settings.destination = 2
-            try expect(settings.captureCode == 5322, "Capture encoding")
+            try expect(settings.captureCode == 1_035_322, "Capture encoding")
             print("PASS: original bytes, PNG/TIFF conversion, companions, naming, month grouping and collision protection")
             for destination in [0, 1, 2] {
                 let camera = SavingCamera(jpeg)
@@ -121,6 +134,34 @@ actor SavingCamera: CameraService {
                 try expect(restored.saving.destination == destination && restored.saving.counter == 2, "Saving preferences not persisted")
                 await model.shutdown()
             }
+            for (kind, outputs, retention, card) in [
+                ("raw", ["raw"], "all", ["jpeg", "raw"]),
+                ("dng", ["dng"], "selected", ["dng"]),
+                ("dng", ["dng", "tiff"], "none", [String]()),
+                ("raw", ["raw", "png", "tiff"], "selected", ["jpeg"])
+            ] {
+                let camera = SavingCamera(jpeg)
+                let model = CameraModel(service: camera, preferences: prefs)
+                model.folder = root.appendingPathComponent(UUID().uuidString)
+                model.saving = SaveSettings()
+                model.saving.sensorMode = kind; model.saving.selectedMacFormats = outputs
+                model.saving.destination = retention == "none" ? 2 : 0
+                model.saving.cameraRetention = retention; model.saving.selectedCameraFormats = card
+                model.update(CameraReply(state: CameraState(mode: 1, modeName: "AUTO", flash: 0, zoom: 0, focus: 1000, aflock: 0, record: true, battery: 3800)))
+                model.capture(); try await waitFor(model)
+                try expect(model.error == nil, "Independent output failed: " + (model.error ?? ""))
+                let actual = try FileManager.default.contentsOfDirectory(at: model.folder, includingPropertiesForKeys: nil)
+                try expect(Set(actual.map { $0.pathExtension }) == Set(outputs), "Unexpected final companion files")
+                let commands = await camera.commands()
+                try expect(commands == (retention == "all" ? ["take"] : ["take", "finishcapture"]), "Wrong selective cleanup")
+                let restored = CameraModel(service: camera, preferences: prefs)
+                try expect(restored.saving.macFormats == outputs && restored.saving.cardFormats == card, "Independent preferences did not persist")
+                await model.shutdown()
+            }
+            var old = SaveSettings(); old.format = "dng"
+            let migrated = try JSONDecoder().decode(SaveSettings.self, from: JSONEncoder().encode(old))
+            try expect(migrated.macFormats == ["jpeg", "dng"] && migrated.cardPolicy == "all", "Legacy preferences changed outputs")
+            print("PASS: RAW/DNG without JPEG, combined conversions, independent card retention and settings migration")
             for failure in ["download", "deletion", "preparation"] {
                 let camera = SavingCamera(jpeg)
                 if failure == "download" { await camera.setBadDownload() }
