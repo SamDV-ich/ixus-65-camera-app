@@ -40,8 +40,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>IXUS Camera</string>
 <key>CFBundleDisplayName</key><string>IXUS Camera</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.4.1</string>
-<key>CFBundleVersion</key><string>6</string>
+<key>CFBundleShortVersionString</key><string>0.5.0</string>
+<key>CFBundleVersion</key><string>7</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>
@@ -63,4 +63,14 @@ if ! mv "$APP" "$APP_PATH"; then
     [[ ! -e "$BUILD_WORK/previous.app" ]] || mv "$BUILD_WORK/previous.app" "$APP_PATH"
     exit 1
 fi
+# Refresh the existing workspace shortcut after publishing a complete new bundle.
+python3 - "$WORK_ROOT/IXUS Camera.app" "$APP_PATH" <<'PYALIAS'
+import os, sys, uuid
+from pathlib import Path
+alias, app = map(Path, sys.argv[1:])
+if alias.is_symlink() and alias.resolve() == app.resolve():
+    replacement = alias.with_name('.ixus-shortcut-' + uuid.uuid4().hex)
+    replacement.symlink_to(os.readlink(alias), target_is_directory=True)
+    os.replace(replacement, alias)
+PYALIAS
 echo "$APP_PATH"

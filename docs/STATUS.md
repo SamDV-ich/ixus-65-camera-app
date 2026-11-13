@@ -1,4 +1,4 @@
-# Application status: 0.4.1
+# Application status: 0.5.0 (build 7)
 
 Hardware checks used Canon IXUS 65, CHDK 1.6.1 rev6355 / 100A and Intel macOS Ventura 13.7.8.
 
