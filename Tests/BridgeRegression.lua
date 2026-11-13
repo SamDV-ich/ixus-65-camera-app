@@ -216,3 +216,11 @@ local calls,_,_,responses,starts=scenario({'screen\t1\t\t1','key\t0\t\t2','key\t
 for _,response in ipairs(responses) do assert(response:match('"ok":true'),response) end
 assert(starts==1 and not calls:find('half-press',1,true),calls)
 original_print('PASS: MENU closes by bitmap readback before one persistent FUNC session; no autofocus is started')
+
+local previous_capture=package.loaded.ixus_capture
+package.loaded.ixus_capture={attempt=function() return {captureFailed=true,captureError='Download failed',shotRequested=true} end}
+local calls,_,connections,replies=scenario({'take\t0\t\t1','poll\t\t\t2','QUIT'})
+assert(replies[1]:match('"captureFailed":true') and replies[2]:match('"ok":true'))
+assert(connections==0 and select(2,calls:gsub('disconnect',''))==1,calls)
+package.loaded.ixus_capture=previous_capture
+original_print('PASS: a recoverable capture failure preserves the existing USB session and subsequent polling')

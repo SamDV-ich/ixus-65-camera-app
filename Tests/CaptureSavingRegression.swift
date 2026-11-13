@@ -22,14 +22,17 @@ actor SavingCamera: CameraService {
     var actions: [String] = []
     var badDownload = false
     var deleteFails = false
+    var captureRefusal = false
     init(_ data: Data) { self.data = data }
     func setBadDownload() { badDownload = true }
+    func setCaptureRefusal() { captureRefusal = true }
     func setDeleteFails() { deleteFails = true }
     func commands() -> [String] { actions }
     func shutdown() async {}
     func execute(_ action: String, value: Int?, output: URL?) async throws -> CameraReply {
         actions.append(action)
         if action == "take" {
+            if captureRefusal { return CameraReply(captureFailed: true, captureError: "Quality rejected", shotRequested: false) }
             if (value ?? 0) / 10 % 10 == 1 {
                 try expect(output == nil, "Camera-only created local output")
                 return CameraReply(cameraFiles: ["A/DCIM/100CANON/IMG_6202.JPG"])
@@ -118,9 +121,11 @@ actor SavingCamera: CameraService {
                 try expect(restored.saving.destination == destination && restored.saving.counter == 2, "Saving preferences not persisted")
                 await model.shutdown()
             }
-            for failure in ["download", "deletion"] {
+            for failure in ["download", "deletion", "preparation"] {
                 let camera = SavingCamera(jpeg)
-                if failure == "download" { await camera.setBadDownload() } else { await camera.setDeleteFails() }
+                if failure == "download" { await camera.setBadDownload() }
+                else if failure == "preparation" { await camera.setCaptureRefusal() }
+                else { await camera.setDeleteFails() }
                 let model = CameraModel(service: camera, preferences: prefs)
                 model.folder = root.appendingPathComponent(failure)
                 model.saving = SaveSettings(); model.saving.destination = 2
@@ -128,7 +133,9 @@ actor SavingCamera: CameraService {
                 model.capture(); try await waitFor(model)
                 let commands = await camera.commands()
                 try expect(model.error != nil && model.state != nil, "Local saving failure disconnected camera or was hidden")
-                if failure == "download" { try expect(commands == ["take"], "Deleted originals after bad download") }
+                if failure == "download" || failure == "preparation" { try expect(commands == ["take"], "Deleted originals after failed capture")
+                    if failure == "preparation" { try expect(model.error?.contains("Съёмка не запускалась") == true, "Wrong pre-shot warning") }
+                }
                 else { try expect(model.lastPhoto != nil, "Deletion error lost local result") }
                 await model.shutdown()
             }

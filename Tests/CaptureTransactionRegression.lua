@@ -20,9 +20,10 @@ function camera:execwait(code,opts)
  return assert(load(code,nil,'t',env))()
 end
 function camera:download(path,dest)
- if fail_download then return false,'download failed' end
- local f=assert(io.open(dest,'wb')); f:write(string.rep('a',paths[path].size)); f:close(); return true
+ if fail_download then error('I/O error',0) end
+ local f=assert(io.open(dest,'wb')); f:write(string.rep('a',paths[path].size)); f:close()
 end
+function camera:script_status() return {run=false} end
 function camera:stat(path) return paths[path] end
 function camera:remove(path)
  if fail_delete then return false,'delete failed' end
@@ -54,10 +55,19 @@ local ok,err=pcall(function()
  fail_download=true
  assert(not pcall(capture.take,camera,20,directory))
  assert(not pcall(capture.finish,camera),'Failed download left deletion enabled')
+ local failed=capture.attempt(camera,20,directory)
+ assert(failed.captureFailed and failed.shotRequested and failed.captureError:find('Скачивание с камеры:',1,true) and failed.captureError:find('I/O error',1,true))
+ local original_status=camera.script_status
+ camera.script_status=function() error('I/O error',0) end
+ local success,message=pcall(capture.attempt,camera,20,directory)
+ assert(not success and tostring(message):find('Скачивание с камеры:',1,true))
+ camera.script_status=original_status
  fail_download=false; reject_property=true
  local before=shots
  assert(not pcall(capture.take,camera,100,directory))
  assert(shots==before,'Property refusal still took a shot')
+ local rejected=capture.attempt(camera,100,directory)
+ assert(rejected.captureFailed and not rejected.shotRequested and rejected.captureError:find('Применение качества',1,true))
  print('PASS: JPEG/RAW/DNG routing, property readback, no premature deletion, failed download retention and changed-file protection')
 end)
 clean(); os.remove(directory)

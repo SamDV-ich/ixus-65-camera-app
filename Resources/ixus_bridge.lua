@@ -205,8 +205,8 @@ function M.run(action,value,output,request_id)
    stop_menu(); assert(close_main(),'Закройте меню камеры')
    if not remote('return get_mode()') then local s,e=cli:execute('rec'); assert(s,e) end
    assert(not remote([[return require'capmode'.get_name()]]):match('^VIDEO'),'Выберите режим фотосъёмки вместо видео')
-   local result=require('ixus_capture').take(con,value,output)
-   result.state=state()
+   local result=require('ixus_capture').attempt(con,value,output)
+   if not result.captureFailed then result.state=state() end
    return result
   elseif action=='finishcapture' then
    return require('ixus_capture').finish(con)

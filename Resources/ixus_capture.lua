@@ -1,11 +1,14 @@
 -- One explicit shot transaction. Only paths reported by that shot can be deleted.
 local M={}
 local pending
+M.stage="Подготовка сохранения"
+M.shotRequested=false
 local function checked_path(path)
  assert(type(path)=='string' and path:match('^A/[A-Za-z0-9_/.]+$') and not path:find('..',1,true),'Некорректный путь снимка на камере')
  return path
 end
 function M.take(con,code,output)
+ M.stage="Проверка параметров сохранения"; M.shotRequested=false
  code=code or 0
  local format=code%10; local destination=math.floor(code/10)%10
  local quality=math.floor(code/100)%10-1; local resolution=math.floor(code/1000)-1
@@ -19,7 +22,9 @@ function M.take(con,code,output)
  if %d>=0 then assert(p.RESOLUTION,'Размер недоступен'); set_prop(p.RESOLUTION,%d); assert(get_prop(p.RESOLUTION)==%d,'Камера не приняла размер') end;
  if %d>0 then assert(type(get_raw)=='function' and type(set_raw)=='function','RAW недоступен'); if type(is_raw_possible)=='function' then assert(is_raw_possible(),'RAW недоступен в этом режиме') end end
  ]]):format(quality,quality,quality,resolution,resolution,resolution,format)
+ M.stage="Применение качества и размера JPEG"
  con:execwait(prepare)
+ M.stage="Съёмка и ожидание ответа камеры"; M.shotRequested=true
  local info,err=con:execwait(('return rlib_shoot({info=true,raw=%d,dng=%d})'):format(format>0 and 1 or 0,format==2 and 1 or 0),{libs={'serialize_msgs','rlib_shoot'},timeout=60000})
  assert(type(info)=='table',err or 'Камера не подтвердила снимок; проверьте карту перед повтором')
  assert(type(info.exp)=='number' and info.exp%1==0 and info.exp>=0 and info.exp<=9999,'Некорректный номер снимка')
@@ -37,12 +42,16 @@ function M.take(con,code,output)
  local downloaded={}; local cameraFiles={}
  for i,file in ipairs(paths) do
   cameraFiles[i]=file.path
+  M.stage="Ожидание файла на карте: "..file.path
   local stat=con:execwait(([[local path=%q; local t=get_tick_count(); local s; repeat s=os.stat(path); if not s then sleep(50) end until s or get_tick_count()-t>3000; return s]]):format(file.path))
   assert(stat and stat.size and stat.size>0,'Снимок не найден на карте; проверьте карту перед повтором')
   file.size=stat.size; file.mtime=stat.mtime
   file.name=file.path:match('([^/]+)$')
   if destination~=1 then
-   local ok,e=con:download(file.path,output..'/'..file.name); assert(ok,e or 'Ошибка скачивания; оригиналы оставлены на карте')
+   M.stage='Скачивание с камеры: '..file.path
+   -- Native CHDKPTP download returns no values on success and throws on error.
+   con:download(file.path,output..'/'..file.name)
+   M.stage='Проверка скачанного файла: '..file.name
    local f=assert(io.open(output..'/'..file.name,'rb')); local size=f:seek('end'); f:close()
    assert(size==file.size,'Неполный файл; оригиналы оставлены на карте')
    downloaded[#downloaded+1]={name=file.name,kind=file.kind,size=file.size}
@@ -50,6 +59,20 @@ function M.take(con,code,output)
  end
  if destination==2 then pending=paths end
  return {capturedFiles=destination~=1 and downloaded or nil,cameraFiles=cameraFiles}
+end
+
+function M.attempt(con,code,output)
+ local ok,result=pcall(M.take,con,code,output)
+ if ok then return result end
+ local detail=tostring(result):gsub('^.-:%d+: ','')
+ local message=M.stage..': '..detail
+ -- Only after an error, probe the existing session without starting a script.
+ -- A live/unfinished camera script must never be killed or followed by a retry.
+ local healthy,status=pcall(function() return con:script_status() end)
+ if healthy and status and not status.run then
+  return {captureFailed=true,captureError=message,shotRequested=M.shotRequested}
+ end
+ error(message,0)
 end
 function M.finish(con)
  assert(pending,'Нет подтверждённого снимка для удаления')

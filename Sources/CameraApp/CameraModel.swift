@@ -292,6 +292,10 @@ import SwiftUI
                 let reply: CameraReply
                 do { reply = try await service.execute("take", value: settings.captureCode, output: staging) }
                 catch { canResume = false; connectionFailed(error); throw error }
+                if reply.captureFailed == true {
+                    shotRequested = reply.shotRequested ?? true
+                    throw CameraFailure(message: reply.captureError ?? "Не удалось сохранить снимок")
+                }
                 update(reply)
                 saving.counter += 1
                 if settings.destination == 1 {

@@ -31,6 +31,9 @@ struct CameraReply: Decodable {
     var warning: String?
     var overlay: String?
     var file: String?
+    var captureFailed: Bool?
+    var captureError: String?
+    var shotRequested: Bool?
     var capturedFiles: [CapturedFile]?
     var cameraFiles: [String]?
     var deleted: Bool?
