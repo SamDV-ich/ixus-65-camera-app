@@ -37,7 +37,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct CameraView: View {
     @ObservedObject var model: CameraModel
     @State private var showingCameraMenu = false
-    @State private var confirmRelease = false
     @FocusState private var focusEditing: Bool
     var body: some View {
         VStack(spacing: 16) {
@@ -61,9 +60,6 @@ struct CameraView: View {
                 }
                 Spacer()
                 if model.busy { ProgressView().controlSize(.small) }
-                if model.connectionKind == "occupied" || model.connectionKind == "unavailable" {
-                    Button("Освободить подключение…") { confirmRelease = true }.disabled(model.busy)
-                }
                 Button(model.state == nil ? "Подключить" : "Обновить") { model.perform("status") }.disabled(model.busy)
             }
             HStack(alignment: .top, spacing: 20) {
@@ -194,12 +190,6 @@ struct CameraView: View {
             NativeCameraControls(model: model)
                 .onAppear { model.setCameraMenu(true) }
                 .onDisappear { model.setCameraMenu(false) }
-        }
-        .alert("Освободить подключение камеры?", isPresented: $confirmRelease) {
-            Button("Отмена", role: .cancel) {}
-            Button("Освободить и подключиться") { model.perform("reclaim") }
-        } message: {
-            Text("Будет принудительно остановлена системная служба импорта фотографий macOS. Текущий импорт может прерваться. Другие приложения нужно закрыть самостоятельно. Передать их открытый сеанс этому приложению невозможно.")
         }
         .alert("Камера", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("Понятно") { model.error = nil } } message: { Text(model.error ?? "") }
     }

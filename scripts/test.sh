@@ -15,6 +15,8 @@ env LUA_PATH="Resources/?.lua;;" "$LUA_BIN" Tests/CaptureTransactionRegression.l
 "$TEST_DIR/regression"
 swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Tests/ConnectionRegression.swift -o "$TEST_DIR/connection"
 "$TEST_DIR/connection"
+swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Tests/AutomaticConnectionRegression.swift -o "$TEST_DIR/automatic-connection"
+"$TEST_DIR/automatic-connection"
 env LUA_PATH="Resources/?.lua;;" "$LUA_BIN" Tests/MenuSessionRegression.lua
 "$LUA_BIN" Tests/BridgeRegression.lua Resources/ixus_bridge.lua "$TEST_DIR/camera-state.json"
 swiftc -parse-as-library -target x86_64-apple-macosx13.0 -module-cache-path /private/tmp/ixus65-swift-cache Sources/CameraCore/*.swift Sources/CameraApp/CameraModel.swift Tests/SettingsRegression.swift -o "$TEST_DIR/settings"

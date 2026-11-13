@@ -92,7 +92,11 @@ actor CHDKCameraService: CameraService {
     private var sequence = 0
     private var ending = false
     private var connectionGeneration: Int?
-    init(resources: URL) { self.resources = resources }
+    private let importer: any CameraImporterControl
+    private var attemptedImporterRecovery = false
+    init(resources: URL, importer: any CameraImporterControl = SystemCameraImporter()) {
+        self.resources = resources; self.importer = importer
+    }
 
     private func startWorker() throws -> CameraWorker {
         if let worker = worker, worker.process.isRunning { return worker }
@@ -113,17 +117,30 @@ actor CHDKCameraService: CameraService {
 
     func execute(_ action: String, value: Int? = nil, output: URL? = nil) async throws -> CameraReply {
         guard !ending else { throw CameraFailure(message: "Приложение завершает работу") }
-        if action == "reclaim" {
+        do {
+            let reply = try executeOnce(action, value: value, output: output)
+            if action == "status" { attemptedImporterRecovery = false }
+            return reply
+        } catch {
+            guard action == "status" else { throw error }
+            let text = error.localizedDescription
+            if text.contains("IXUS_ABSENT:") { attemptedImporterRecovery = false }
+            let claimBlocked = text.contains("IXUS_BUSY:") || text.contains("IXUS_CLAIM_DENIED:")
+            guard claimBlocked, !attemptedImporterRecovery else { throw error }
+            let identifiers = importer.runningPIDs()
+            guard !identifiers.isEmpty else { throw error }
+            attemptedImporterRecovery = true
             closeWorker()
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-            process.arguments = ["-KILL", "ptpcamerad"]
-            process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice
-            try process.run(); process.waitUntilExit()
-            // A missing service is harmless; a permission failure is reported by the connection attempt.
+            try importer.stop(identifiers)
             try await Task.sleep(nanoseconds: 300_000_000)
-            return try await execute("status", value: nil, output: nil)
+            guard !ending else { throw CameraFailure(message: "Приложение завершает работу") }
+            let reply = try executeOnce(action, value: value, output: output)
+            attemptedImporterRecovery = false
+            return reply
         }
+    }
+
+    private func executeOnce(_ action: String, value: Int?, output: URL?) throws -> CameraReply {
         guard ["take", "finishcapture", "status", "poll", "display", "live", "frame", "record", "play", "capture", "mode", "flash", "zoom", "focus", "focusrange", "focusnow", "focuslock", "autofocus", "iso", "wb", "ev", "metering", "screen", "key"].contains(action) else {
             throw CameraFailure(message: "Неизвестная команда камеры")
         }
@@ -144,12 +161,15 @@ actor CHDKCameraService: CameraService {
             try session.input.write(contentsOf: Data(request.utf8))
             var response: Envelope?
             var usbBusy = false
+            var usbClaimDenied = false
             while let line = try session.readLine() {
                 if line.contains("IXUS_USB_BUSY") { usbBusy = true }
+                if line.contains("IXUS_USB_UNAVAILABLE") { usbClaimDenied = true }
                 guard line.hasPrefix("IXUS_RESULT:") else { continue }
                 let decoded = try JSONDecoder().decode(Envelope.self, from: Data(line.dropFirst(12).utf8))
                 guard decoded.requestID == requestID else { throw CameraFailure(message: "Нарушена последовательность ответов камеры") }
                 if usbBusy && !decoded.ok { throw CameraFailure(message: "IXUS_BUSY: USB-интерфейс камеры занят другой программой или системной службой.") }
+                if usbClaimDenied && !decoded.ok { throw CameraFailure(message: "IXUS_CLAIM_DENIED: Камера видна, но доступ к её USB-интерфейсу отклонён.") }
                 connectionGeneration = decoded.connectionGeneration
                 response = decoded
                 break

@@ -1,6 +1,6 @@
 # IXUS Camera
 
-A native macOS application for Canon Digital IXUS 65 / PowerShot SD630 with CHDK. Version 0.5.0 provides configurable capture destinations and JPEG/RAW/DNG saving, local PNG/TIFF conversion, adjustable Live View, shooting controls, battery information and camera backlight management.
+A native macOS application for Canon Digital IXUS 65 / PowerShot SD630 with CHDK. Version 0.5.1 provides configurable capture destinations and JPEG/RAW/DNG saving, local PNG/TIFF conversion, adjustable Live View, shooting controls, battery information and camera backlight management.
 
 ## Repository layout
 

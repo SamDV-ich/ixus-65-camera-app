@@ -90,7 +90,7 @@ import SwiftUI
         state = nil; focusProblem = nil; focusRange = nil; availableModes = []; liveSupported = false; displaySupported = false; keepBacklightOff = false
         connectionKind = text.contains("IXUS_BUSY:") ? "occupied" : (text.contains("IXUS_ABSENT:") ? "absent" : "unavailable")
         connection = connectionKind == "occupied" ? "Камера занята" : (connectionKind == "absent" ? "Камера не найдена" : "Камера недоступна")
-        let clean = text.replacingOccurrences(of: "IXUS_BUSY: ", with: "").replacingOccurrences(of: "IXUS_ABSENT: ", with: "")
+        let clean = text.replacingOccurrences(of: "IXUS_BUSY: ", with: "").replacingOccurrences(of: "IXUS_ABSENT: ", with: "").replacingOccurrences(of: "IXUS_CLAIM_DENIED: ", with: "")
         if !quietly { self.error = clean }
         if message != clean { note(clean) }
     }
@@ -204,7 +204,7 @@ import SwiftUI
             do {
                 let reply = try await service.execute(action, value: value, output: nil)
                 update(reply)
-                if !wasConnected && (action == "status" || action == "reclaim") {
+                if !wasConnected && action == "status" {
                     error = nil
                     // Enter record mode before applying the backlight preference:
                     // Canon may wake the lamp when Live View changes modes.

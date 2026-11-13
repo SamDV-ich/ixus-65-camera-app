@@ -29,7 +29,7 @@ Commands enter record mode when needed. Camera settings remain on the camera aft
 
 The header distinguishes searching, absent, connected, an occupied USB interface and unavailable access with an unknown cause. Session failure alone does not prove another client owns the camera. The owner generally cannot be identified; a running ptpcamerad process is not proof of ownership.
 
-All operations reuse the application's persistent connection. Another application's session cannot be adopted. For occupied or unavailable access, the release-connection action offers to force-stop only macOS's ptpcamerad import service, with confirmation because imports may be interrupted. Close other clients yourself. Success is not guaranteed: the service may restart or another program may hold the camera. Reconnect USB or restart the camera with CHDK if necessary. Automatic discovery never force-stops services.
+All operations reuse the application's persistent connection. Another application's session cannot be adopted. After an explicit USB-interface busy or claim-denied response, automatic connection checks for the current user's ptpcamerad import service. If present, it stops only those exact service processes and retries connection once. This can interrupt a camera import. The automatic attempt is bounded to once per failure episode, reset by a successful connection or an observed unplug. Generic session or I/O errors do not trigger service termination. Other camera applications must be closed by the user. The separate release button has been removed. Success is not guaranteed if another application owns the interface.
 
 The bundled CHDKPTP build checks USB interface claiming, avoids changing the USB configuration and avoids device resets on open/close or retrying a failed session open. Resources/chdkptp-safe-usb.patch is applied only to a temporary source copy; the original installation is unchanged. The patched connection and Live View were validated on hardware. Permission denied was kept distinct from confirmed interface occupancy. The import service ignored ordinary termination during testing; SIGKILL released access. Two competing independent CHDKPTP clients were not separately tested.
 
@@ -73,7 +73,7 @@ The original legacy application and original CHDKPTP installation have not been 
 
 Application repository: /Users/dmitrysamoilovich/chdk-work/ixus-capture. Generated bundle: ../builds/ixus-capture/IXUS Camera.app, outside Git. Workspace-level docs cover film/darktable workflows, tools contains third-party installations, artifacts contains photographs/logs and archive contains old builds and the legacy application.
 
-Version 0.5.0 (build 7) includes configurable saving and preview preferences. See [SAVING.md](SAVING.md) for supported paths and hardware verification limits.
+Version 0.5.1 (build 8) includes configurable saving and preview preferences. See [SAVING.md](SAVING.md) for supported paths and hardware verification limits.
 
 ## Simple focus controls and mode restrictions
 

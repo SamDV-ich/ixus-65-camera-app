@@ -1,6 +1,10 @@
 import Foundation
 import Darwin
 
+struct NoCameraImporter: CameraImporterControl {
+    func runningPIDs() -> [Int32] { [] }
+    func stop(_ identifiers: [Int32]) throws { throw CameraFailure(message: "Unexpected importer stop") }
+}
 @main struct ConnectionRegression {
     static func check(marker: String, expectedBusy: Bool) async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("ixus-protocol-" + UUID().uuidString)
@@ -15,7 +19,7 @@ import Darwin
         """
         try Data(script.utf8).write(to: helper)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: helper.path)
-        let service = CHDKCameraService(resources: root)
+        let service = CHDKCameraService(resources: root, importer: NoCameraImporter())
         do {
             _ = try await service.execute("status")
             throw CameraFailure(message: "Failure was incorrectly accepted")

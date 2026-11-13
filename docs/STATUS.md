@@ -1,4 +1,4 @@
-# Application status: 0.5.0 (build 7)
+# Application status: 0.5.1 (build 8)
 
 Hardware checks used Canon IXUS 65, CHDK 1.6.1 rev6355 / 100A and Intel macOS Ventura 13.7.8.
 
@@ -30,7 +30,7 @@ Live View and keeping the backlight off are enabled by default and controlled in
 
 ## Continuous discovery
 
-Every connection failure schedules another background attempt after three seconds, including unavailable and occupied states and a broken preview connection. Discovery never invokes reclaim and stops on shutdown. Simulation covers absent, unavailable and occupied states, connection, disconnection and recovery with preview/backlight preferences. This change has not had a separate physical USB reconnection test.
+Every connection failure schedules another background attempt after three seconds, including unavailable and occupied states and a broken preview connection. Discovery stops on shutdown. Version 0.5.1 adds bounded recovery from an explicit USB claim failure by stopping the current user's running ptpcamerad and retrying once; other failures never trigger that action. Simulation covers absent, unavailable and occupied states, connection, disconnection and recovery with preview/backlight preferences. Automatic service recovery is checked with an injected fake importer and helper. It has not had a separate physical USB reconnection test.
 
 [Requirements](REQUIREMENTS.md) · [Build and tests](BUILD.md)
 
