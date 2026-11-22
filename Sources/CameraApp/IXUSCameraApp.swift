@@ -97,15 +97,13 @@ struct CameraView: View {
                         }
                         Spacer()
                     }
-                    if let photo = model.lastPhoto {
-                        Button("Показать сохранённый файл") { NSWorkspace.shared.activateFileViewerSelecting([photo]) }
-                    }
+                    Button("Показать сохранённые") { model.openSaveFolder() }
                 }
                 ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Group {
                     SectionHelpHeader(title: "Съёмка", explanation: "JPEG сохраняется в выбранную папку на Mac. Оригинал остаётся на SD-карте.")
-                    Button(action: { model.capture() }) { Label("Снять • " + model.saving.destinationTitle, systemImage: "camera.fill").frame(maxWidth: .infinity).padding(.vertical, 8) }
+                    Button(action: { model.capture() }) { Label("Снять", systemImage: "camera.fill").frame(maxWidth: .infinity).padding(.vertical, 8) }
                         .buttonStyle(.borderedProminent).controlSize(.large).disabled(model.busy || model.state == nil || !model.selectedMode.isPhoto)
                     if model.state?.record == false { Button("Режим съёмки") { model.perform("record") } }
                     Divider()
@@ -183,10 +181,6 @@ struct CameraView: View {
                     Spacer()
                 }
                 }.frame(width: 310).disabled(model.busy || model.state == nil)
-            }
-            HStack {
-                Text(model.saving.destinationTitle).foregroundColor(.secondary)
-                Spacer()
             }
             Text(model.message).font(.callout).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
         }.padding(22).frame(minWidth: 900, minHeight: 650)

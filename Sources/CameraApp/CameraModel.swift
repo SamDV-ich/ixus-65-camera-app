@@ -311,7 +311,7 @@ import SwiftUI
                     try FileManager.default.createDirectory(at: path, withIntermediateDirectories: false)
                     staging = path
                 }
-                note("Снимаю • " + settings.destinationTitle + "…")
+                note("Снимаю…")
                 shotRequested = true
                 let reply: CameraReply
                 do { reply = try await service.execute("take", value: settings.captureCode, output: staging) }
