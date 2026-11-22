@@ -117,6 +117,11 @@ actor CHDKCameraService: CameraService {
 
     func execute(_ action: String, value: Int? = nil, output: URL? = nil) async throws -> CameraReply {
         guard !ending else { throw CameraFailure(message: "Приложение завершает работу") }
+        if action == "disconnect" {
+            closeWorker()
+            attemptedImporterRecovery = false
+            return CameraReply()
+        }
         do {
             let reply = try executeOnce(action, value: value, output: output)
             if action == "status" { attemptedImporterRecovery = false }

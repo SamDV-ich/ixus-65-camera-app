@@ -34,6 +34,8 @@ Default output: `../builds/ixus-capture/IXUS Camera.app`. The application bundle
 
 [Requirements](docs/REQUIREMENTS.md) · [User guide](docs/APP-GUIDE.md) · [Validation and limitations](docs/STATUS.md)
 
+The connection button releases the camera session when connected. After a manual disconnect, automatic search stays paused until Connect is pressed; unexpected connection losses still trigger automatic recovery. The application menu opens the event journal in a separate window. The saved-file Finder action appears directly below the Live View status.
+
 Saving settings independently select JPEG, CHDK RAW or DNG, and local PNG/TIFF outputs for Mac, with separate camera retention rules. Destinations, naming and date folders are described in [Saving photographs](docs/SAVING.md). Selective download and retention are simulator-tested; no new physical camera or deletion test was performed for these routes.
 
 ## License

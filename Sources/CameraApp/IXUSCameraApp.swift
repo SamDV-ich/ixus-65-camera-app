@@ -28,7 +28,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             CameraView(model: model).onAppear { delegate.model = model; model.start() }.onDisappear { model.stopLive() }
         }
         .defaultSize(width: 980, height: 700)
-        .commands { CommandGroup(replacing: .newItem) {} }
+        .commands {
+            CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appSettings) {
+                JournalMenuCommand()
+            }
+        }
+        Window("Журнал", id: "journal") {
+            CameraJournalView(model: model)
+        }.defaultSize(width: 720, height: 400)
         Settings {
             CameraSettingsView(model: model)
         }
@@ -60,7 +68,9 @@ struct CameraView: View {
                 }
                 Spacer()
                 if model.busy { ProgressView().controlSize(.small) }
-                Button(model.state == nil ? "Подключить" : "Обновить") { model.perform("status") }.disabled(model.busy)
+                Button(model.state == nil ? "Подключить" : "Отключить") {
+                    if model.state == nil { model.perform("status") } else { model.disconnect() }
+                }.disabled(model.busy)
             }
             HStack(alignment: .top, spacing: 20) {
                 VStack(spacing: 10) {
@@ -88,7 +98,7 @@ struct CameraView: View {
                         Spacer()
                     }
                     if let photo = model.lastPhoto {
-                        Button("Показать последний JPEG в Finder") { NSWorkspace.shared.activateFileViewerSelecting([photo]) }
+                        Button("Показать сохранённый файл") { NSWorkspace.shared.activateFileViewerSelecting([photo]) }
                     }
                 }
                 ScrollView {
@@ -177,14 +187,8 @@ struct CameraView: View {
             HStack {
                 Text(model.saving.destinationTitle).foregroundColor(.secondary)
                 Spacer()
-                if let photo = model.lastPhoto {
-                    Button("Показать сохранённый файл") { NSWorkspace.shared.activateFileViewerSelecting([photo]) }
-                }
             }
             Text(model.message).font(.callout).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
-            DisclosureGroup("Журнал") {
-                ScrollView { Text(model.events.joined(separator: "\n")).font(.system(.caption, design: .monospaced)).frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled) }.frame(height: 80)
-            }
         }.padding(22).frame(minWidth: 900, minHeight: 650)
         .sheet(isPresented: $showingCameraMenu) {
             NativeCameraControls(model: model)
@@ -492,5 +496,24 @@ struct SaveSettingsView: View {
     }
     private func resolutionName(_ value: Int?) -> String {
         [0: "L", 1: "M1", 2: "M2", 4: "S", 8: "W"][value ?? -1] ?? "—"
+    }
+}
+
+struct JournalMenuCommand: View {
+    @Environment(\.openWindow) private var openWindow
+    var body: some View {
+        Button("Журнал…") { openWindow(id: "journal") }
+    }
+}
+
+struct CameraJournalView: View {
+    @ObservedObject var model: CameraModel
+    var body: some View {
+        ScrollView {
+            Text(model.events.isEmpty ? "Журнал пуст" : model.events.joined(separator: "\n"))
+                .font(.system(.body, design: .monospaced))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled).padding()
+        }.frame(minWidth: 480, minHeight: 240)
     }
 }

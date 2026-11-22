@@ -55,6 +55,18 @@ actor ReconnectingCamera: CameraService {
             await service.setFailure(nil)
             try await waitFor { model.state != nil && model.live && model.keepBacklightOff && model.liveFrames > firstFrames && !model.busy }
             print("PASS: unplug/replug restores connection, preview and backlight preference")
+            model.disconnect()
+            try await waitFor { model.connectionKind == "disconnected" && !model.busy }
+            let pausedCommands = await service.recordedCommands()
+            guard pausedCommands.last == "disconnect", model.state == nil, !model.live else {
+                throw CameraFailure(message: "Manual disconnect did not release the session")
+            }
+            try await Task.sleep(nanoseconds: 1_200_000_000)
+            let stillPaused = await service.recordedCommands()
+            guard stillPaused == pausedCommands else { throw CameraFailure(message: "Manual disconnect resumed camera requests") }
+            model.perform("status")
+            try await waitFor { model.state != nil && model.live && !model.busy }
+            print("PASS: manual disconnect stops all requests until explicit reconnect")
             await model.shutdown()
             let attempts = await service.attempts()
             try await Task.sleep(nanoseconds: 1_200_000_000)

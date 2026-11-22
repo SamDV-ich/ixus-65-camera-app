@@ -53,6 +53,7 @@ import SwiftUI
     private var nextSearchAt = Date.distantPast
     private var operationRevision = 0
     private var ending = false
+    private var manuallyDisconnected = false
     // Poll without toggling busy or restarting Live View. Discard responses
     // overtaken by a user operation, so old state cannot overwrite its result.
     private func pollState() async {
@@ -78,7 +79,7 @@ import SwiftUI
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
                 guard !Task.isCancelled, !ending else { return }
                 if state != nil { await pollState() }
-                else if !busy && Date() >= nextSearchAt {
+                else if !manuallyDisconnected && !busy && Date() >= nextSearchAt {
                     perform("status", quietly: true)
                 }
             }
@@ -193,6 +194,7 @@ import SwiftUI
     }
     func perform(_ action: String, value: Int? = nil, quietly: Bool = false) {
         guard !ending, !busy else { return }
+        if action == "status" { manuallyDisconnected = false }
         operationRevision += 1
         var resumeLive = live
         let wasConnected = state != nil
@@ -420,6 +422,25 @@ import SwiftUI
                     return
                 }
             }
+        }
+    }
+    func disconnect() {
+        guard !busy, !ending, state != nil else { return }
+        manuallyDisconnected = true
+        operationRevision += 1
+        stopLive()
+        busy = true
+        Task {
+            defer { busy = false }
+            do {
+                _ = try await service.execute("disconnect", value: nil, output: nil)
+                state = nil; availableModes = []; focusProblem = nil; focusRange = nil
+                liveSupported = false; displaySupported = false; keepBacklightOff = false
+                cameraMenuActive = false
+                connectionKind = "disconnected"; connection = "Камера отключена"
+                error = nil
+                note("Камера отключена. Для подключения нажмите «Подключить».")
+            } catch { connectionFailed(error) }
         }
     }
     func shutdown() async { ending = true; operationRevision += 1; monitor?.cancel(); monitor = nil; stopLive(); await service.shutdown() }
